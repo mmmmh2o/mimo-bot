@@ -2,12 +2,16 @@
  * AI 适配器注册表
  */
 import { MiMoAdapter } from './mimo.js'
+import { ChatGPTAdapter } from './chatgpt.js'
+import { DeepSeekAdapter } from './deepseek.js'
 
 export { BaseAdapter } from './base-adapter.js'
 
 // 所有适配器注册在此
 const adapters = {
   mimo: MiMoAdapter,
+  chatgpt: ChatGPTAdapter,
+  deepseek: DeepSeekAdapter,
 }
 
 /**
