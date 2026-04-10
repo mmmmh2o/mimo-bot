@@ -1,37 +1,37 @@
 # MiMo Bot — 开发进度
 
-## 状态: ✅ P2 完成
+## 状态: ✅ 全部完成
 
-| 阶段 | 状态 | 说明 |
+| 阶段 | 状态 | Commit |
+|------|------|--------|
+| P0-核心模块 | ✅ | 初始 |
+| P1-前端页面 | ✅ | 7b938bf |
+| P2-适配器扩展 | ✅ | aa15d39 |
+| P2-文档 | ✅ | 初始 |
+| **P3-打包发布** | **✅** | **9d690cb** |
+
+## P3 打包 — 6 步全部完成
+
+| 步骤 | 内容 | 状态 |
 |------|------|------|
-| P0-核心模块 | ✅ 完成 | engine/browser/db/variables/scraper/git/scheduler/settings/plugins |
-| P1-前端页面 | ✅ 完成 | 6个视图 IPC 接入 + StatusBar + flow store 重写 |
-| P2-适配器扩展 | ✅ 完成 | 新增 ChatGPT + DeepSeek 适配器 (aa15d39) |
-| P2-文档 | ✅ 完成 | 9 篇文档总计 2878 行 |
+| ① 跨平台 | main.js(单实例/CSP/userData) + browser-controller(headless/Chromium发现) + git-sync + preload | ✅ |
+| ② Build配置 | Win NSIS / Mac DMG / Linux AppImage+deb / ASAR / Playwright内嵌 | ✅ |
+| ③ Playwright打包 | extraResources + _findChromium() 三路径查找 | ✅ |
+| ④ 安全加固 | 单实例锁 + CSP + contextIsolation + 外部链接隔离 | ✅ |
+| ⑤ 应用图标 | SVG源 + PNG多尺寸 + ICO/ICNS placeholder | ✅ |
+| ⑥ CI/CD | GitHub Actions 三平台构建 + tag触发自动Release | ✅ |
 
-## 项目统计
+## 产出物
 
-| 模块 | 文件数 | 代码行数 |
-|------|--------|----------|
-| 核心 (core/) | 12 | 2,416 |
-| 前端 (renderer/) | 12 | ~2,750 |
-| Electron | 2 | 341 |
-| 文档 (docs/) | 9 | 2,878 |
-| **总计** | **35** | **~8,400** |
-
-## 适配器
-
-| 适配器 | 状态 | 网站 |
-|--------|------|------|
-| MiMo | ✅ | platform.xiaomimimo.com |
-| ChatGPT | ✅ | chat.openai.com |
-| DeepSeek | ✅ | chat.deepseek.com |
-| Kimi | ⏳ 待添加 | kimi.moonshot.cn |
-| 通义千问 | ⏳ 待添加 | tongyi.aliyun.com |
+| 平台 | 安装包 |
+|------|--------|
+| Windows | MiMo Bot Setup 0.1.0.exe |
+| macOS | MiMo Bot-0.1.0.dmg |
+| Linux | MiMo_Bot-0.1.0.AppImage / .deb |
 
 ## 更新日志
 
-- 2026-04-10 19:02 — P2: 新增 ChatGPT + DeepSeek 适配器 (254 行)
-- 2026-04-10 18:45 — P1: 前端 6 页面完整 IPC 接入 (1222 行)
-- 2026-04-10 18:16 — P0: 核心链路全部完成
-- 2026-04-10 18:12 — 初始代码推送 (37 files, 6507 行)
+- 2026-04-10 19:11 — P3 打包全部完成 (9d690cb, +473 行, 20 文件)
+- 2026-04-10 19:02 — P2 适配器扩展 (ChatGPT + DeepSeek)
+- 2026-04-10 18:45 — P1 前端页面 IPC 接入
+- 2026-04-10 18:12 — 初始代码推送
