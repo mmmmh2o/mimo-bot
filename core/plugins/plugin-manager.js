@@ -1,17 +1,20 @@
 /**
  * 插件管理器
  * 扫描、加载、注册插件（节点、工具、适配器）
+ * 支持依赖注入和生命周期管理
  */
-import { readdir, readFile, stat } from 'fs/promises'
+import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
 import log from 'electron-log'
 
 export class PluginManager {
   /**
    * @param {string} pluginDir - 插件安装目录
+   * @param {object} ctx - 依赖注入上下文
    */
-  constructor(pluginDir) {
+  constructor(pluginDir, ctx = {}) {
     this.pluginDir = pluginDir
+    this._ctx = ctx
     this._plugins = new Map() // name -> plugin
   }
 
@@ -48,7 +51,6 @@ export class PluginManager {
    * @param {string} pluginPath - 插件目录路径
    */
   async load(pluginPath) {
-    // 读取 manifest.json
     const manifestPath = join(pluginPath, 'manifest.json')
     const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
 
@@ -59,28 +61,102 @@ export class PluginManager {
     // 动态加载插件模块
     const entryPath = join(pluginPath, manifest.entry || 'index.js')
     const plugin = await import(entryPath)
+    const module = plugin.default || plugin
 
     const pluginInstance = {
       manifest,
-      module: plugin.default || plugin,
+      module,
       path: pluginPath,
       enabled: true,
     }
 
+    // 生命周期: init
+    if (typeof module.init === 'function') {
+      try {
+        await module.init(this._ctx)
+        log.info(`插件已初始化: ${manifest.name}`)
+      } catch (error) {
+        log.error(`插件初始化失败: ${manifest.name}`, error)
+        throw error
+      }
+    }
+
     this._plugins.set(manifest.name, pluginInstance)
-    log.info(`插件已加载: ${manifest.name} v${manifest.version}`)
+    log.info(`插件已加载: ${manifest.name} v${manifest.version} [${manifest.type}]`)
   }
 
   /**
-   * 卸载插件
+   * 卸载插件（带生命周期）
    */
   unload(name) {
+    const plugin = this._plugins.get(name)
+    if (!plugin) return
+
+    // 生命周期: destroy
+    if (typeof plugin.module.destroy === 'function') {
+      try {
+        plugin.module.destroy()
+      } catch (error) {
+        log.error(`插件销毁失败: ${name}`, error)
+      }
+    }
+
     this._plugins.delete(name)
     log.info(`插件已卸载: ${name}`)
   }
 
   /**
-   * 获取所有插件
+   * 启用插件
+   */
+  enable(name) {
+    const plugin = this._plugins.get(name)
+    if (plugin) {
+      plugin.enabled = true
+      log.info(`插件已启用: ${name}`)
+    }
+  }
+
+  /**
+   * 禁用插件
+   */
+  disable(name) {
+    const plugin = this._plugins.get(name)
+    if (plugin) {
+      plugin.enabled = false
+      log.info(`插件已禁用: ${name}`)
+    }
+  }
+
+  /**
+   * 从本地目录安装插件
+   */
+  async install(dirPath) {
+    const manifestPath = join(dirPath, 'manifest.json')
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'))
+
+    // 复制到插件目录
+    const { cp } = await import('fs/promises')
+    const dest = join(this.pluginDir, manifest.name)
+    await cp(dirPath, dest, { recursive: true })
+
+    // 加载
+    await this.load(dest)
+    return { success: true, name: manifest.name }
+  }
+
+  /**
+   * 卸载并删除插件
+   */
+  async uninstall(name) {
+    this.unload(name)
+    const { rm } = await import('fs/promises')
+    const dir = join(this.pluginDir, name)
+    await rm(dir, { recursive: true, force: true })
+    log.info(`插件已删除: ${name}`)
+  }
+
+  /**
+   * 获取所有插件信息
    */
   getPlugins() {
     return Array.from(this._plugins.entries()).map(([name, plugin]) => ({
@@ -101,7 +177,7 @@ export class PluginManager {
   }
 
   /**
-   * 获取节点实现
+   * 获取节点实现（给 engine 用）
    */
   getNodeImplementation(nodeType) {
     const nodePlugins = this.getPluginsByType('node')

@@ -1,6 +1,7 @@
 /**
  * 流程执行引擎
  * 解析流程定义，按节点拓扑排序执行，管理变量和状态
+ * 节点执行走插件注册表，新增节点不动核心代码
  */
 import log from 'electron-log'
 
@@ -14,19 +15,32 @@ export class FlowExecutionError extends Error {
   }
 }
 
+export class UnknownNodeTypeError extends Error {
+  constructor(nodeType) {
+    super(`未知节点类型: ${nodeType}`)
+    this.name = 'UnknownNodeTypeError'
+    this.nodeType = nodeType
+  }
+}
+
 export class FlowEngine {
   /**
    * @param {object} deps
    * @param {import('./browser-controller.js').BrowserController} deps.browserController
    * @param {import('./variables.js').VariableEngine} deps.variableEngine
    * @param {import('./database.js').Database} deps.db
-   * @param {function} deps.onEvent - 事件回调 (推送到渲染进程)
+   * @param {function} deps.onEvent - 事件回调
    */
   constructor({ browserController, variableEngine, db, onEvent }) {
     this.browser = browserController
     this.variables = variableEngine
     this.db = db
     this.onEvent = onEvent
+    this._pluginManager = null
+
+    // 内置节点注册表
+    this._nodeRegistry = new Map()
+    this._registerBuiltinNodes()
 
     this._running = false
     this._paused = false
@@ -38,10 +52,32 @@ export class FlowEngine {
   }
 
   /**
-   * 运行指定流程
-   * @param {string} flowId - 流程 ID
+   * 注册插件管理器中的节点类型
    */
-  async run(flowId) {
+  registerPlugins(pluginManager) {
+    this._pluginManager = pluginManager
+    const nodePlugins = pluginManager.getPluginsByType('node')
+    for (const plugin of nodePlugins) {
+      for (const [type, impl] of Object.entries(plugin.module)) {
+        if (typeof impl?.execute === 'function') {
+          this._nodeRegistry.set(type, impl)
+          log.info(`插件节点已注册: ${type} (来自 ${plugin.manifest.name})`)
+        }
+      }
+    }
+  }
+
+  /**
+   * 手动注册节点类型
+   */
+  registerNode(type, implementation) {
+    this._nodeRegistry.set(type, implementation)
+  }
+
+  /**
+   * 运行指定流程
+   */
+  async run(flowId, inputVars) {
     if (this._running) {
       throw new Error('已有流程在运行中，请先停止')
     }
@@ -52,7 +88,6 @@ export class FlowEngine {
     this._step = 0
 
     try {
-      // 加载流程定义
       const flow = await this.db.getFlow(flowId)
       if (!flow) throw new Error(`流程 ${flowId} 不存在`)
 
@@ -70,8 +105,14 @@ export class FlowEngine {
           this.variables.set(name, config.value, config.scope)
         }
       }
+      // 外部传入的输入变量
+      if (inputVars) {
+        for (const [name, value] of Object.entries(inputVars)) {
+          this.variables.set(name, value, 'input')
+        }
+      }
 
-      // 确保浏览器已打开
+      // 确保浏览器已就绪
       await this.browser.ensureReady()
 
       log.info(`流程 "${flow.name}" 开始执行`, { flowId, nodeCount: sortedNodes.length })
@@ -112,6 +153,11 @@ export class FlowEngine {
             nodeId: node.id,
             error: error.message,
           })
+          // 如果节点配置了 continueOnError，跳过继续
+          if (node.data?.continueOnError) {
+            log.warn(`节点 ${node.id} 配置了 continueOnError，跳过`)
+            continue
+          }
           throw new FlowExecutionError(flowId, node.id, error)
         }
       }
@@ -164,182 +210,236 @@ export class FlowEngine {
   }
 
   /**
-   * 执行单个节点
-   * @param {object} node
+   * 执行单个节点 — 走注册表而非 switch
    */
   async _executeNode(node) {
-    const data = node.data || {}
-
-    // 渲染模板变量
-    const render = (template) => {
-      if (typeof template !== 'string') return template
-      return this.variables.render(template)
+    const handler = this._nodeRegistry.get(node.type)
+    if (!handler) {
+      throw new UnknownNodeTypeError(node.type)
     }
 
-    switch (node.type) {
-      case 'start':
-        // 设置输入变量
+    // 构建执行上下文
+    const ctx = {
+      variables: this.variables,
+      browser: this.browser,
+      db: this.db,
+      emit: (event, data) => this._emit(event, data),
+      log,
+      render: (template) => {
+        if (typeof template !== 'string') return template
+        return this.variables.render(template)
+      },
+    }
+
+    await handler.execute(node.data, ctx)
+  }
+
+  /**
+   * 注册内置节点类型
+   */
+  _registerBuiltinNodes() {
+    // 开始节点
+    this._nodeRegistry.set('start', {
+      type: 'start',
+      async execute(data, ctx) {
         if (data.inputVariables) {
           for (const [k, v] of Object.entries(data.inputVariables)) {
-            this.variables.set(k, render(v), 'input')
+            ctx.variables.set(k, ctx.render(v), 'input')
           }
         }
-        break
+      },
+    })
 
-      case 'send-message': {
-        const content = render(data.content)
-        await this.browser.sendMessage(content, {
+    // 发送消息
+    this._nodeRegistry.set('send-message', {
+      type: 'send-message',
+      async execute(data, ctx) {
+        const content = ctx.render(data.content)
+        await ctx.browser.sendMessage(content, {
           typingSpeed: data.typingSpeed || [50, 150],
           delayBeforeSend: data.delayBeforeSend || [1000, 3000],
         })
 
         if (data.waitForReply) {
-          const reply = await this.browser.waitForReply({
+          const reply = await ctx.browser.waitForReply({
             timeout: data.timeout || 120,
           })
           if (data.outputVariable) {
-            this.variables.set(data.outputVariable, reply, 'runtime')
+            ctx.variables.set(data.outputVariable, reply, 'runtime')
           }
+          // 保存对话记录
+          ctx.db?.insert('conversations', {
+            flow_id: ctx.variables.get('__flow_id'),
+            node_id: data.id,
+            role: 'user',
+            content,
+          })
+          ctx.db?.insert('conversations', {
+            flow_id: ctx.variables.get('__flow_id'),
+            node_id: data.id,
+            role: 'assistant',
+            content: reply,
+          })
         }
-        break
-      }
+      },
+    })
 
-      case 'wait-reply': {
-        const reply = await this.browser.waitForReply({
+    // 等待回复
+    this._nodeRegistry.set('wait-reply', {
+      type: 'wait-reply',
+      async execute(data, ctx) {
+        const reply = await ctx.browser.waitForReply({
           timeout: data.timeout || 120,
         })
         if (data.outputVariable) {
-          this.variables.set(data.outputVariable, reply, 'runtime')
+          ctx.variables.set(data.outputVariable, reply, 'runtime')
         }
-        break
-      }
+      },
+    })
 
-      case 'extract': {
-        const source = this.variables.get(data.sourceVariable) || ''
-        if (data.rules) {
-          for (const rule of data.rules) {
-            let extracted = null
-            if (rule.type === 'regex') {
-              const match = source.match(new RegExp(rule.pattern, 's'))
-              extracted = match ? match[1] || match[0] : null
-            } else if (rule.type === 'code-block') {
-              const lang = rule.language || '\\w+'
-              const re = new RegExp(`\`\`\`${lang}\\n([\\s\\S]*?)\`\`\``, 's')
-              const match = source.match(re)
-              extracted = match ? match[1] : null
-            }
-            if (extracted !== null) {
-              this.variables.set(rule.variable, extracted, rule.dataType || 'string')
-              this._emit('flow:variable-updated', { name: rule.variable, value: extracted })
-            }
+    // 提取变量
+    this._nodeRegistry.set('extract', {
+      type: 'extract',
+      async execute(data, ctx) {
+        const source = ctx.variables.get(data.sourceVariable) || ''
+        if (!data.rules) return
+
+        for (const rule of data.rules) {
+          let extracted = null
+          if (rule.type === 'regex') {
+            const match = source.match(new RegExp(rule.pattern, 's'))
+            extracted = match ? match[1] || match[0] : null
+          } else if (rule.type === 'code-block') {
+            const lang = rule.language || '\\w+'
+            const re = new RegExp(`\`\`\`${lang}\\n([\\s\\S]*?)\`\`\``, 's')
+            const match = source.match(re)
+            extracted = match ? match[1] : null
+          }
+          if (extracted !== null) {
+            ctx.variables.set(rule.variable, extracted, rule.dataType || 'string')
+            ctx.emit('flow:variable-updated', { name: rule.variable, value: extracted })
           }
         }
-        break
-      }
+      },
+    })
 
-      case 'condition': {
-        // 条件分支节点不直接执行动作，由引擎根据 edges 决定路径
-        // 这里只做条件判断
-        const sourceValue = this.variables.get(data.sourceVariable) || ''
-        const result = this._evaluateCondition(sourceValue, data.condition)
-        this.variables.set(`__branch_${node.id}`, result, 'runtime')
-        break
-      }
+    // 条件分支
+    this._nodeRegistry.set('condition', {
+      type: 'condition',
+      async execute(data, ctx) {
+        const sourceValue = ctx.variables.get(data.sourceVariable) || ''
+        const result = evaluateCondition(sourceValue, data.condition)
+        ctx.variables.set(`__branch_${data.id}`, result, 'runtime')
+      },
+    })
 
-      case 'loop': {
-        // 循环在流程图层面处理，这里处理单次迭代
-        const items = this.variables.get(data.sourceVariable) || []
-        if (Array.isArray(items)) {
-          for (let i = 0; i < items.length; i++) {
-            this.variables.set(data.itemVariable || 'item', items[i], 'runtime')
-            this.variables.set(data.indexVariable || 'index', i, 'runtime')
-            // 循环体在流程图中由 edges 连接
-          }
+    // 循环
+    this._nodeRegistry.set('loop', {
+      type: 'loop',
+      async execute(data, ctx) {
+        const items = ctx.variables.get(data.sourceVariable) || []
+        if (!Array.isArray(items)) return
+        const max = data.maxIterations || items.length
+        for (let i = 0; i < Math.min(items.length, max); i++) {
+          ctx.variables.set(data.itemVariable || 'item', items[i], 'runtime')
+          ctx.variables.set(data.indexVariable || 'index', i, 'runtime')
         }
-        break
-      }
+      },
+    })
 
-      case 'read-file': {
+    // 读取文件
+    this._nodeRegistry.set('read-file', {
+      type: 'read-file',
+      async execute(data, ctx) {
         const fs = await import('fs/promises')
-        const filePath = render(data.path)
-        const content = await fs.readFile(filePath, 'utf-8')
+        const filePath = ctx.render(data.path)
+        const content = await fs.readFile(filePath, data.encoding || 'utf-8')
         if (data.outputVariable) {
-          this.variables.set(data.outputVariable, content, 'runtime')
+          ctx.variables.set(data.outputVariable, content, 'runtime')
         }
-        break
-      }
+      },
+    })
 
-      case 'save': {
+    // 保存文件
+    this._nodeRegistry.set('save', {
+      type: 'save',
+      async execute(data, ctx) {
         const fs = await import('fs/promises')
         const path = await import('path')
-        const value = this.variables.get(data.variable) || ''
-        const filePath = render(data.path)
+        const value = ctx.variables.get(data.variable) || ''
+        const filePath = ctx.render(data.path)
         await fs.mkdir(path.dirname(filePath), { recursive: true })
-        await fs.writeFile(filePath, value, 'utf-8')
+        if (data.append) {
+          await fs.appendFile(filePath, value, 'utf-8')
+        } else {
+          await fs.writeFile(filePath, value, 'utf-8')
+        }
         log.info(`文件已保存: ${filePath}`)
-        break
-      }
+      },
+    })
 
-      case 'set-variable': {
-        this.variables.set(data.name, render(data.value), data.scope || 'runtime')
-        this._emit('flow:variable-updated', { name: data.name, value: data.value })
-        break
-      }
+    // 设置变量
+    this._nodeRegistry.set('set-variable', {
+      type: 'set-variable',
+      async execute(data, ctx) {
+        ctx.variables.set(data.name, ctx.render(data.value), data.scope || 'runtime')
+        ctx.emit('flow:variable-updated', { name: data.name, value: data.value })
+      },
+    })
 
-      case 'human-handoff': {
-        this._paused = true
-        this._emit('flow:waiting-input', {
-          nodeId: node.id,
+    // 运行命令
+    this._nodeRegistry.set('run-command', {
+      type: 'run-command',
+      async execute(data, ctx) {
+        const { exec } = await import('child_process')
+        const { promisify } = await import('util')
+        const execAsync = promisify(exec)
+
+        const command = ctx.render(data.command)
+        const cwd = data.workingDir ? ctx.render(data.workingDir) : process.cwd()
+        const timeout = (data.timeout || 60) * 1000
+
+        const { stdout, stderr } = await execAsync(command, { cwd, timeout })
+        const output = stdout || stderr
+
+        if (data.outputVariable) {
+          ctx.variables.set(data.outputVariable, output, 'runtime')
+        }
+      },
+    })
+
+    // 人工介入
+    this._nodeRegistry.set('human-handoff', {
+      type: 'human-handoff',
+      async execute(data, ctx) {
+        ctx.emit('flow:waiting-input', {
           message: data.message || '需要人工介入',
         })
-        while (this._paused && !this._stopRequested) {
-          await this._sleep(500)
+        // 等待外部 resume
+        while (true) {
+          await new Promise(r => setTimeout(r, 500))
+          // 检查是否已恢复（通过外部设置的标志）
+          if (!this._paused) break
         }
-        break
-      }
+      },
+    })
 
-      case 'delay': {
+    // 延时
+    this._nodeRegistry.set('delay', {
+      type: 'delay',
+      async execute(data) {
         const seconds = data.seconds || 5
-        await this._sleep(seconds * 1000)
-        break
-      }
+        await new Promise(resolve => setTimeout(resolve, seconds * 1000))
+      },
+    })
 
-      case 'end':
-        break
-
-      default:
-        // 尝试从插件系统中查找节点实现
-        log.warn(`未知节点类型: ${node.type}`)
-        break
-    }
+    // 结束
+    this._nodeRegistry.set('end', {
+      type: 'end',
+      async execute() { /* 流程终点 */ },
+    })
   }
 
-  /**
-   * 评估条件
-   */
-  _evaluateCondition(value, condition) {
-    const { type, operator, target } = condition
-    switch (type) {
-      case 'contains':
-        return value.includes(target)
-      case 'not-contains':
-        return !value.includes(target)
-      case 'equals':
-        return value === target
-      case 'regex':
-        return new RegExp(target).test(value)
-      case 'greater-than':
-        return Number(value) > Number(target)
-      case 'less-than':
-        return Number(value) < Number(target)
-      default:
-        return false
-    }
-  }
-
-  /**
-   * 拓扑排序
-   */
   _topologicalSort(nodes, edges) {
     const inDegree = new Map()
     const adjList = new Map()
@@ -380,5 +480,22 @@ export class FlowEngine {
 
   _sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+}
+
+/**
+ * 条件评估
+ */
+function evaluateCondition(value, condition) {
+  if (!condition) return false
+  const { type, target } = condition
+  switch (type) {
+    case 'contains': return value.includes(target)
+    case 'not-contains': return !value.includes(target)
+    case 'equals': return value === target
+    case 'regex': return new RegExp(target).test(value)
+    case 'greater-than': return Number(value) > Number(target)
+    case 'less-than': return Number(value) < Number(target)
+    default: return false
   }
 }

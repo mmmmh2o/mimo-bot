@@ -1,24 +1,10 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createRouter, createWebHashHistory } from 'vue-router'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import App from './App.vue'
-
-// 路由
-const routes = [
-  { path: '/', name: 'Dashboard', component: () => import('./views/Dashboard.vue') },
-  { path: '/flows', name: 'Flows', component: () => import('./views/FlowEditor.vue') },
-  { path: '/variables', name: 'Variables', component: () => import('./views/Variables.vue') },
-  { path: '/database', name: 'Database', component: () => import('./views/Database.vue') },
-  { path: '/logs', name: 'Logs', component: () => import('./views/Logs.vue') },
-  { path: '/settings', name: 'Settings', component: () => import('./views/Settings.vue') },
-]
-
-const router = createRouter({
-  history: createWebHashHistory(),
-  routes,
-})
+import router from './router.js'
 
 const app = createApp(App)
 app.use(createPinia())

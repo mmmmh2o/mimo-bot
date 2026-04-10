@@ -5,8 +5,14 @@
 import log from 'electron-log'
 
 export class Scraper {
-  constructor(browserController) {
+  /**
+   * @param {import('./browser-controller.js').BrowserController} browserController
+   * @param {import('./database.js').Database} db
+   */
+  constructor(browserController, db) {
     this.browser = browserController
+    this.db = db
+    this._tasks = new Map()
   }
 
   /**
@@ -19,6 +25,26 @@ export class Scraper {
    * @param {boolean} config.saveToDb - 是否存入数据库
    * @returns {Promise<Array>} 提取的数据
    */
+  /**
+   * 列出抓取任务
+   */
+  listTasks() {
+    if (!this.db) return []
+    try {
+      return this.db.query('scrape_tasks')
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * 删除抓取任务
+   */
+  deleteTask(taskId) {
+    if (!this.db) return
+    this.db.deleteRecord('scrape_tasks', taskId)
+  }
+
   async run(config) {
     const { url, selector, extract, outputVariable, saveToDb } = config
 
@@ -75,19 +101,16 @@ export class Scraper {
       log.info(`抓取完成: ${results.length} 条数据`)
 
       // 存入数据库
-      if (saveToDb && results.length > 0) {
-        const db = this.browser._db
-        if (db) {
-          for (const item of results) {
-            db.insert('scraped_data', {
-              source_url: item.url,
-              title: item.title || '',
-              content: item.content || JSON.stringify(item),
-              metadata: JSON.stringify(item),
-            })
-          }
-          log.info(`${results.length} 条数据已存入数据库`)
+      if (saveToDb && results.length > 0 && this.db) {
+        for (const item of results) {
+          this.db.insert('scraped_data', {
+            source_url: item.url,
+            title: item.title || '',
+            content: item.content || JSON.stringify(item),
+            metadata: JSON.stringify(item),
+          })
         }
+        log.info(`${results.length} 条数据已存入数据库`)
       }
 
       return results
