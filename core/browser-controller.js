@@ -1,10 +1,17 @@
 /**
  * Playwright 浏览器控制器
  * 通过适配器系统与不同 AI 网页交互
+ * 跨平台：Win/Mac/Linux
  */
 import { chromium } from 'playwright'
 import { getAdapter } from './adapters/index.js'
+import { existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import log from 'electron-log'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 export class AdapterError extends Error {
   constructor(adapterName, operation, cause) {
@@ -23,6 +30,8 @@ export class BrowserController {
    * @param {string} config.url - 目标 URL
    * @param {number} config.timeout - 超时 (ms)
    * @param {number} config.slowMo - 慢速 (ms)
+   * @param {boolean} config.headless - 无头模式
+   * @param {string} config.userDataPath - 用户数据目录
    */
   constructor(config = {}) {
     this.config = {
@@ -30,6 +39,8 @@ export class BrowserController {
       url: config.url || 'https://platform.xiaomimimo.com',
       timeout: config.timeout || 60000,
       slowMo: config.slowMo || 500,
+      headless: config.headless ?? false,
+      userDataPath: config.userDataPath || null,
     }
 
     // 加载适配器
@@ -37,15 +48,22 @@ export class BrowserController {
     this._browser = null
     this._context = null
     this._page = null
-    this._cookiePath = null
     this._db = null
   }
 
   /**
-   * 注入数据库引用（用于保存对话记录等）
+   * 注入数据库引用
    */
   setDatabase(db) {
     this._db = db
+  }
+
+  /**
+   * 获取 Cookie 文件路径
+   */
+  get _cookiePath() {
+    const dir = this.config.userDataPath || join(process.cwd(), 'data')
+    return join(dir, 'cookies.json')
   }
 
   /**
@@ -54,21 +72,31 @@ export class BrowserController {
   async ensureReady() {
     if (this._page && !this._page.isClosed()) return
 
-    log.info(`启动浏览器 (适配器: ${this._adapter.name})...`)
-    this._browser = await chromium.launch({
-      headless: false,
+    log.info(`启动浏览器 (适配器: ${this._adapter.name}, headless: ${this.config.headless})...`)
+
+    const launchOptions = {
+      headless: this.config.headless,
       slowMo: this.config.slowMo,
-    })
+    }
+
+    // 打包环境：指定 Playwright 浏览器路径
+    const executablePath = this._findChromium()
+    if (executablePath) {
+      launchOptions.executablePath = executablePath
+      log.info(`使用 Chromium: ${executablePath}`)
+    }
+
+    this._browser = await chromium.launch(launchOptions)
 
     this._context = await this._browser.newContext({
       viewport: { width: 1280, height: 800 },
       userAgent: this._getUserAgent(),
+      locale: 'zh-CN',
+      timezoneId: 'Asia/Shanghai',
     })
 
     // 加载已保存的 Cookie
-    if (this._cookiePath) {
-      await this._loadCookies()
-    }
+    await this._loadCookies()
 
     this._page = await this._context.newPage()
     await this._page.goto(this.config.url || this._adapter.url, {
@@ -77,6 +105,37 @@ export class BrowserController {
     })
 
     log.info(`浏览器已打开: ${this.config.url || this._adapter.url}`)
+  }
+
+  /**
+   * 查找 Chromium 可执行文件（打包环境兼容）
+   */
+  _findChromium() {
+    // 1. 打包环境：检查 resources 目录
+    if (process.resourcesPath) {
+      const candidates = [
+        join(process.resourcesPath, 'chromium', 'chrome'),
+        join(process.resourcesPath, 'chromium', 'chromium'),
+        join(process.resourcesPath, 'chromium', 'chrome.exe'),
+      ]
+      for (const p of candidates) {
+        if (existsSync(p)) return p
+      }
+    }
+
+    // 2. 开发环境：使用 Playwright 自带浏览器（默认行为）
+    // 3. 系统浏览器
+    const systemPaths = {
+      linux: ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'],
+      darwin: ['/Applications/Chromium.app/Contents/MacOS/Chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
+      win32: ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'],
+    }
+    const paths = systemPaths[process.platform] || []
+    for (const p of paths) {
+      if (existsSync(p)) return p
+    }
+
+    return null // 回退到 Playwright 默认
   }
 
   /**
@@ -102,7 +161,6 @@ export class BrowserController {
    */
   async sendMessage(text, options = {}) {
     await this.ensureReady()
-
     try {
       await this._adapter.sendMessage(this._page, text, {
         typingSpeed: options.typingSpeed || [50, 150],
@@ -118,7 +176,6 @@ export class BrowserController {
    */
   async waitForReply(options = {}) {
     await this.ensureReady()
-
     try {
       return await this._adapter.waitForReply(this._page, {
         timeout: options.timeout || 120,
@@ -158,12 +215,10 @@ export class BrowserController {
     if (!this._context) return { success: false }
     const cookies = await this._context.cookies()
     const fs = await import('fs/promises')
-    const path = await import('path')
-    const cookieDir = path.join(process.cwd(), 'data')
-    await fs.mkdir(cookieDir, { recursive: true })
-    this._cookiePath = path.join(cookieDir, 'cookies.json')
+    const dir = dirname(this._cookiePath)
+    await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(this._cookiePath, JSON.stringify(cookies, null, 2))
-    log.info(`Cookie 已保存到: ${this._cookiePath}`)
+    log.info(`Cookie 已保存: ${this._cookiePath}`)
     return { success: true, savedAt: new Date().toISOString() }
   }
 
@@ -171,9 +226,6 @@ export class BrowserController {
    * 加载 Cookie
    */
   async loadCookie() {
-    const fs = await import('fs/promises')
-    const path = await import('path')
-    this._cookiePath = path.join(process.cwd(), 'data', 'cookies.json')
     await this._loadCookies()
     return { success: true }
   }
@@ -185,13 +237,16 @@ export class BrowserController {
     if (this._context) {
       await this._context.clearCookies()
     }
-    this._cookiePath = null
+    try {
+      const fs = await import('fs/promises')
+      await fs.unlink(this._cookiePath)
+    } catch {}
     log.info('Cookie 已清除')
     return { success: true }
   }
 
   /**
-   * 获取当前页面（人工接管用）
+   * 获取当前页面
    */
   getPage() {
     return this._page
@@ -229,14 +284,17 @@ export class BrowserController {
   // ---- 私有方法 ----
 
   async _loadCookies() {
-    if (!this._cookiePath || !this._context) return
+    if (!this._context) return
     try {
       const fs = await import('fs/promises')
-      const cookies = JSON.parse(await fs.readFile(this._cookiePath, 'utf-8'))
+      const raw = await fs.readFile(this._cookiePath, 'utf-8')
+      const cookies = JSON.parse(raw)
       await this._context.addCookies(cookies)
       log.info(`已加载 ${cookies.length} 个 Cookie`)
     } catch (error) {
-      log.warn('Cookie 加载失败，需要重新登录')
+      if (error.code !== 'ENOENT') {
+        log.warn('Cookie 加载失败:', error.message)
+      }
     }
   }
 

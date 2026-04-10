@@ -91,6 +91,13 @@ const api = {
     runNow: (id) => ipcRenderer.invoke('schedule:runNow', id),
   },
 
+  // ---- 应用信息 ----
+  app: {
+    getInfo: () => ipcRenderer.invoke('app:getInfo'),
+    openDataFolder: () => ipcRenderer.invoke('app:openDataFolder'),
+    openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+  },
+
   // ---- 事件订阅 ----
   on: (event, callback) => {
     ipcRenderer.on(event, (_, data) => callback(data))

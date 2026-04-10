@@ -15,10 +15,11 @@ export class GitSync {
    * @param {string} config.branch
    * @param {string[]} config.syncDirs
    */
-  constructor(config = {}) {
+  constructor(config = {}, workspacePath) {
     this.config = config
     this._git = null
-    this._workspacePath = join(process.cwd(), 'workspace')
+    // 优先使用传入的路径（来自 Electron userData），回退到 cwd
+    this._workspacePath = workspacePath || join(process.cwd(), 'workspace')
   }
 
   /**

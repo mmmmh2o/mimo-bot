@@ -1,7 +1,8 @@
 /**
  * Electron 主进程入口
+ * 跨平台：Win/Mac/Linux
  */
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, session, shell } from 'electron'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import log from 'electron-log'
@@ -18,9 +19,11 @@ import { Scraper } from '../core/scraper.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// 配置日志
+// 配置日志（跨平台）
 log.transports.file.level = 'info'
+log.transports.file.maxSize = 10 * 1024 * 1024 // 10MB
 log.info('MiMo Bot 启动中...')
+log.info(`平台: ${process.platform} | 架构: ${process.arch} | Electron: ${process.versions.electron}`)
 
 let mainWindow = null
 let browserController = null
@@ -33,6 +36,20 @@ let pluginManager = null
 let settingsManager = null
 let scraper = null
 
+// ---- 单实例锁 ----
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  log.warn('已有实例运行，退出')
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -40,11 +57,33 @@ async function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     title: 'MiMo Bot',
+    icon: getIconPath(),
+    show: false, // 加载完再显示，避免白屏
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false, // Playwright 需要
     },
+  })
+
+  // CSP 安全策略
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          process.env.NODE_ENV === 'development'
+            ? "default-src 'self' 'unsafe-inline' 'unsafe-eval' ws: http://localhost:*"
+            : "default-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        ],
+      },
+    })
+  })
+
+  // 加载完窗口再显示
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
   })
 
   // 开发模式加载 Vite dev server，生产模式加载打包文件
@@ -56,27 +95,66 @@ async function createWindow() {
     await mainWindow.loadFile(join(__dirname, '../renderer/dist/index.html'))
   }
 
+  // 外部链接用系统浏览器打开
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http')) {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
 }
 
+/**
+ * 获取应用图标路径（跨平台）
+ */
+function getIconPath() {
+  const ext = process.platform === 'win32' ? 'ico'
+    : process.platform === 'darwin' ? 'icns'
+    : 'png'
+  const iconPath = join(__dirname, `../renderer/public/icon.${ext}`)
+
+  // 生产模式检查打包内图标
+  if (app.isPackaged) {
+    const packagedPath = join(process.resourcesPath, `icon.${ext}`)
+    try {
+      const fs = require('fs')
+      if (fs.existsSync(packagedPath)) return packagedPath
+    } catch {}
+  }
+
+  return iconPath
+}
+
 async function initServices() {
-  // 1. 设置管理器（最先加载，其他服务依赖配置）
-  settingsManager = new SettingsManager(join(app.getPath('userData'), 'settings.json'))
+  // 用户数据目录（跨平台自动处理）
+  const userDataPath = app.getPath('userData')
+  log.info(`用户数据目录: ${userDataPath}`)
+
+  // 1. 设置管理器
+  settingsManager = new SettingsManager(join(userDataPath, 'settings.json'))
   await settingsManager.load()
 
   // 2. 数据库
-  db = new Database(join(app.getPath('userData'), 'bot.db'))
+  db = new Database(join(userDataPath, 'bot.db'))
   await db.init()
 
-  // 3. 浏览器控制器（依赖 settings）
-  browserController = new BrowserController(settingsManager.get('browser'))
+  // 3. 浏览器控制器
+  const browserConfig = settingsManager.get('browser') || {}
+  // 生产环境默认 headless（可配置）
+  if (app.isPackaged && browserConfig.headless === undefined) {
+    browserConfig.headless = false // 默认显示浏览器，方便人工接管
+  }
+  browserController = new BrowserController(browserConfig)
 
   // 4. 变量引擎
   variableEngine = new VariableEngine(db)
 
-  // 5. 流程引擎（依赖 browser + variables + db）
+  // 5. 流程引擎
   flowEngine = new FlowEngine({
     browserController,
     variableEngine,
@@ -89,14 +167,14 @@ async function initServices() {
   // 6. 调度器
   scheduler = new Scheduler(flowEngine)
 
-  // 7. Git 同步
-  gitSync = new GitSync(settingsManager.get('github'))
+  // 7. Git 同步（workspace 在 userData 目录下）
+  gitSync = new GitSync(settingsManager.get('github'), join(userDataPath, 'workspace'))
 
   // 8. 抓取引擎
   scraper = new Scraper(browserController, db)
 
-  // 9. 插件管理器（最后加载，可依赖其他服务）
-  pluginManager = new PluginManager(join(app.getPath('userData'), 'plugins'), {
+  // 9. 插件管理器
+  pluginManager = new PluginManager(join(userDataPath, 'plugins'), {
     variables: variableEngine,
     browser: browserController,
     db,
@@ -108,7 +186,7 @@ async function initServices() {
   })
   await pluginManager.scan()
 
-  // 10. 将插件注册的节点类型注入引擎
+  // 10. 注册插件节点
   flowEngine.registerPlugins(pluginManager)
 
   log.info('所有服务初始化完成')
@@ -117,7 +195,7 @@ async function initServices() {
 // ============ IPC 处理 ============
 
 function registerIPC() {
-  // --- 流程相关 ---
+  // --- 流程 ---
   ipcMain.handle('flow:list', () => db.getFlows())
   ipcMain.handle('flow:get', (_, id) => db.getFlow(id))
   ipcMain.handle('flow:save', (_, flow) => {
@@ -139,7 +217,7 @@ function registerIPC() {
   ipcMain.handle('flow:getStatus', () => flowEngine.getStatus())
   ipcMain.handle('flow:getHistory', (_, flowId, opts) => db.getConversationHistory(flowId, opts))
 
-  // --- 变量相关 ---
+  // --- 变量 ---
   ipcMain.handle('variable:list', () => variableEngine.list())
   ipcMain.handle('variable:get', (_, name) => variableEngine.get(name))
   ipcMain.handle('variable:set', (_, name, value, scope) => {
@@ -206,6 +284,21 @@ function registerIPC() {
   ipcMain.handle('schedule:update', (_, id, config) => { scheduler.update(id, config); return { success: true } })
   ipcMain.handle('schedule:delete', (_, id) => { scheduler.remove(id); return { success: true } })
   ipcMain.handle('schedule:runNow', (_, id) => scheduler.runNow(id))
+
+  // --- 应用信息 ---
+  ipcMain.handle('app:getInfo', () => ({
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    userDataPath: app.getPath('userData'),
+    isPackaged: app.isPackaged,
+  }))
+  ipcMain.handle('app:openDataFolder', () => {
+    shell.openPath(app.getPath('userData'))
+  })
+  ipcMain.handle('app:openExternal', (_, url) => {
+    shell.openExternal(url)
+  })
 }
 
 // ============ 应用生命周期 ============
@@ -224,15 +317,18 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    browserController?.close()
-    db?.close()
+    cleanup()
     app.quit()
   }
 })
 
 app.on('before-quit', async () => {
+  await cleanup()
+  log.info('MiMo Bot 已退出')
+})
+
+async function cleanup() {
   scheduler?.stopAll()
   await browserController?.close()
   db?.close()
-  log.info('MiMo Bot 已退出')
-})
+}
