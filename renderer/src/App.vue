@@ -49,8 +49,16 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { Monitor, Connection, Box, Coin, Document, Setting } from '@element-plus/icons-vue'
 import StatusBar from './components/common/StatusBar.vue'
+import { useFlowStore } from './stores/flow'
+
+const flowStore = useFlowStore()
+
+onMounted(() => {
+  flowStore.subscribeEvents()
+})
 </script>
 
 <style>

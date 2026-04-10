@@ -3,7 +3,7 @@
     <h1>📊 日志</h1>
 
     <div class="log-toolbar">
-      <el-select v-model="logLevel" placeholder="日志级别" clearable>
+      <el-select v-model="logLevel" placeholder="日志级别" clearable style="width:120px">
         <el-option label="DEBUG" value="debug" />
         <el-option label="INFO" value="info" />
         <el-option label="WARN" value="warn" />
@@ -16,8 +16,10 @@
         style="width: 300px"
       />
       <el-switch v-model="autoScroll" active-text="自动滚动" />
-      <el-button @click="clearLogs">🗑️ 清空</el-button>
-      <el-button @click="exportLogs">📤 导出</el-button>
+      <el-tag size="small">{{ filteredLogs.length }} / {{ logs.length }} 条</el-tag>
+      <el-button size="small" @click="clearLogs">🗑️ 清空</el-button>
+      <el-button size="small" @click="exportLogs">📤 导出</el-button>
+      <el-button size="small" @click="loadEngineLogs">🔄 加载历史</el-button>
     </div>
 
     <div class="log-container" ref="logContainer">
@@ -40,8 +42,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useFlowStore } from '@/stores/flow'
+import { ElMessage } from 'element-plus'
 
+const flowStore = useFlowStore()
 const logLevel = ref('')
 const searchText = ref('')
 const autoScroll = ref(true)
@@ -63,10 +68,60 @@ watch(filteredLogs, async () => {
   }
 })
 
-const clearLogs = () => { logs.value = [] }
-const exportLogs = () => {
-  // TODO: 导出日志文件
+// 监听 flow store 的日志变化，同步到日志页
+watch(() => flowStore.logs.length, () => {
+  const newLogs = flowStore.logs.map(l => ({
+    time: l.time,
+    level: l.type === 'success' ? 'info' : l.type === 'error' ? 'error' : l.type === 'warn' ? 'warn' : 'info',
+    source: 'engine',
+    message: l.message,
+  }))
+  logs.value = newLogs
+})
+
+const clearLogs = () => {
+  logs.value = []
+  ElMessage.info('日志已清空')
 }
+
+const exportLogs = () => {
+  if (!logs.value.length) { ElMessage.warning('无日志可导出'); return }
+  const text = logs.value.map(l =>
+    `[${l.time}] [${l.level.toUpperCase()}] [${l.source}] ${l.message}`
+  ).join('\n')
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('日志已导出')
+}
+
+const loadEngineLogs = async () => {
+  try {
+    // 从 flow history 加载历史日志
+    const history = await window.api.flow.getHistory(null, { limit: 100 })
+    if (history && Array.isArray(history)) {
+      const historyLogs = history.map(h => ({
+        time: new Date(h.created_at || h.timestamp).toLocaleTimeString(),
+        level: h.status === 'failed' ? 'error' : 'info',
+        source: 'history',
+        message: `[${h.flow_name || h.flow_id}] ${h.status === 'success' ? '完成' : '失败'} - ${h.turns || 0} 轮`,
+      }))
+      logs.value = [...historyLogs, ...logs.value]
+      ElMessage.success(`已加载 ${historyLogs.length} 条历史日志`)
+    }
+  } catch (e) {
+    ElMessage.error(`加载历史日志失败: ${e.message}`)
+  }
+}
+
+onMounted(() => {
+  // 自动加载历史
+  loadEngineLogs()
+})
 </script>
 
 <style scoped>
@@ -87,6 +142,7 @@ h1 {
   gap: 8px;
   margin-bottom: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .log-container {

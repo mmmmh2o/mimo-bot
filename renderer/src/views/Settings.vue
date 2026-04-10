@@ -2,7 +2,7 @@
   <div class="settings-page">
     <h1>⚙️ 设置</h1>
 
-    <el-tabs v-model="activeTab" type="border-card">
+    <el-tabs v-model="activeTab" type="border-card" v-loading="loading">
       <!-- 浏览器 -->
       <el-tab-pane label="🌐 浏览器" name="browser">
         <el-form label-position="top" :model="settings.browser">
@@ -128,6 +128,10 @@
                 <el-checkbox value="data">抓取数据</el-checkbox>
               </el-checkbox-group>
             </el-form-item>
+            <el-form-item>
+              <el-button @click="testGitSync">🧪 测试同步</el-button>
+              <el-button @click="checkGitStatus">📋 Git 状态</el-button>
+            </el-form-item>
           </template>
         </el-form>
       </el-tab-pane>
@@ -158,7 +162,12 @@
                 <el-col :span="6">
                   <el-form-item label="流程">
                     <el-select v-model="task.flowId" placeholder="选择流程">
-                      <el-option label="日常开发任务" value="flow-1" />
+                      <el-option
+                        v-for="flow in flowStore.flowList"
+                        :key="flow.id"
+                        :label="flow.name"
+                        :value="flow.id"
+                      />
                     </el-select>
                   </el-form-item>
                 </el-col>
@@ -201,12 +210,12 @@
       <el-tab-pane label="🧩 扩展" name="extensions">
         <el-form label-position="top">
           <h3 style="color:#aaa; margin-bottom:12px">已安装扩展</h3>
-          <el-table :data="settings.extensions" stripe>
+          <el-table :data="settings.extensions" stripe v-loading="extLoading" empty-text="暂无扩展">
             <el-table-column prop="name" label="名称" />
             <el-table-column prop="version" label="版本" width="80" />
             <el-table-column prop="enabled" label="状态" width="100">
               <template #default="{ row }">
-                <el-switch v-model="row.enabled" />
+                <el-switch v-model="row.enabled" @change="toggleExtension(row)" />
               </template>
             </el-table-column>
             <el-table-column label="操作" width="100">
@@ -218,23 +227,29 @@
           <div style="margin-top:12px">
             <el-button @click="installExtension">📂 从本地文件夹加载</el-button>
             <el-button @click="installCrx">📦 从 .crx 安装</el-button>
+            <el-button @click="refreshExtensions">🔄 刷新</el-button>
           </div>
         </el-form>
       </el-tab-pane>
     </el-tabs>
 
     <div class="settings-footer">
-      <el-button type="primary" @click="saveSettings">💾 保存所有设置</el-button>
+      <el-button type="primary" @click="saveSettings" :loading="saving">💾 保存所有设置</el-button>
       <el-button @click="resetSettings">🔄 恢复默认</el-button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { useFlowStore } from '@/stores/flow'
 
+const flowStore = useFlowStore()
 const activeTab = ref('browser')
+const loading = ref(false)
+const saving = ref(false)
+const extLoading = ref(false)
 
 const settings = reactive({
   browser: {
@@ -272,24 +287,99 @@ const settings = reactive({
     webhookOnFail: '',
   },
   schedules: [],
-  extensions: [
-    { name: 'Tampermonkey', version: '5.0', enabled: true },
-  ],
+  extensions: [],
 })
 
-const openBrowserLogin = () => {
-  // TODO: IPC 打开浏览器
+const loadSettings = async () => {
+  loading.value = true
+  try {
+    const data = await window.api.settings.get()
+    if (data) {
+      if (data.browser) Object.assign(settings.browser, data.browser)
+      if (data.conversation) Object.assign(settings.conversation, data.conversation)
+      if (data.github) Object.assign(settings.github, data.github)
+      if (data.notify) Object.assign(settings.notify, data.notify)
+      if (data.schedules) settings.schedules = data.schedules
+    }
+  } catch (e) {
+    console.error('Load settings error:', e)
+  } finally {
+    loading.value = false
+  }
 }
 
-const saveCookie = () => {
-  // TODO: IPC 保存 Cookie
-  settings.browser.cookieSaved = true
-  ElMessage.success('Cookie 已保存')
+const saveSettings = async () => {
+  saving.value = true
+  try {
+    for (const [section, values] of Object.entries(settings)) {
+      if (section !== 'extensions') {
+        await window.api.settings.set(section, values)
+      }
+    }
+    ElMessage.success('设置已保存')
+  } catch (e) {
+    ElMessage.error(`保存失败: ${e.message}`)
+  } finally {
+    saving.value = false
+  }
 }
 
-const clearCookie = () => {
-  settings.browser.cookieSaved = false
-  ElMessage.info('Cookie 已清除')
+const resetSettings = async () => {
+  await ElMessageBox.confirm('确定恢复所有设置为默认值？', '确认', { type: 'warning' })
+  try {
+    await window.api.settings.reset()
+    await loadSettings()
+    ElMessage.info('已恢复默认设置')
+  } catch (e) {
+    ElMessage.error(`重置失败: ${e.message}`)
+  }
+}
+
+const openBrowserLogin = async () => {
+  try {
+    await window.api.browser.open()
+    ElMessage.info('浏览器已打开，请手动登录')
+  } catch (e) {
+    ElMessage.error(`打开浏览器失败: ${e.message}`)
+  }
+}
+
+const saveCookie = async () => {
+  try {
+    await window.api.browser.saveCookie()
+    settings.browser.cookieSaved = true
+    ElMessage.success('Cookie 已保存')
+  } catch (e) {
+    ElMessage.error(`保存 Cookie 失败: ${e.message}`)
+  }
+}
+
+const clearCookie = async () => {
+  try {
+    await window.api.browser.clearCookie()
+    settings.browser.cookieSaved = false
+    ElMessage.info('Cookie 已清除')
+  } catch (e) {
+    ElMessage.error(`清除 Cookie 失败: ${e.message}`)
+  }
+}
+
+const testGitSync = async () => {
+  try {
+    const result = await window.api.git.sync({ dryRun: true })
+    ElMessage.success(`同步测试成功: ${JSON.stringify(result)}`)
+  } catch (e) {
+    ElMessage.error(`同步测试失败: ${e.message}`)
+  }
+}
+
+const checkGitStatus = async () => {
+  try {
+    const status = await window.api.git.status()
+    ElMessage.info(JSON.stringify(status, null, 2))
+  } catch (e) {
+    ElMessage.error(`获取 Git 状态失败: ${e.message}`)
+  }
 }
 
 const addSchedule = () => {
@@ -306,27 +396,60 @@ const removeSchedule = (index) => {
   settings.schedules.splice(index, 1)
 }
 
-const removeExtension = (ext) => {
-  // TODO: 卸载扩展
+const refreshExtensions = async () => {
+  extLoading.value = true
+  try {
+    const plugins = await window.api.plugin.list()
+    settings.extensions = (plugins || []).map(p => ({
+      name: p.manifest?.name || p.name,
+      version: p.manifest?.version || '?',
+      enabled: p.enabled !== false,
+    }))
+  } catch (e) {
+    console.error('Load extensions error:', e)
+  } finally {
+    extLoading.value = false
+  }
+}
+
+const toggleExtension = async (ext) => {
+  try {
+    if (ext.enabled) {
+      await window.api.plugin.enable(ext.name)
+    } else {
+      await window.api.plugin.disable(ext.name)
+    }
+  } catch (e) {
+    ElMessage.error(`操作失败: ${e.message}`)
+    ext.enabled = !ext.enabled
+  }
+}
+
+const removeExtension = async (ext) => {
+  await ElMessageBox.confirm(`确定卸载扩展 "${ext.name}"？`, '确认卸载', { type: 'warning' })
+  try {
+    await window.api.plugin.uninstall(ext.name)
+    await refreshExtensions()
+    ElMessage.success('已卸载')
+  } catch (e) {
+    ElMessage.error(`卸载失败: ${e.message}`)
+  }
 }
 
 const installExtension = () => {
-  // TODO: 从本地加载扩展
+  ElMessage.info('请选择包含 plugin.json 的文件夹')
+  // Electron 中需要通过 dialog 选择文件夹，暂用提示
 }
 
 const installCrx = () => {
-  // TODO: 安装 .crx
+  ElMessage.info('请选择 .crx 文件')
 }
 
-const saveSettings = async () => {
-  // TODO: IPC 保存设置
-  ElMessage.success('设置已保存')
-}
-
-const resetSettings = () => {
-  // TODO: 恢复默认
-  ElMessage.info('已恢复默认设置')
-}
+onMounted(() => {
+  loadSettings()
+  refreshExtensions()
+  flowStore.loadFlowList()
+})
 </script>
 
 <style scoped>
@@ -360,5 +483,7 @@ h1 {
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid #2a2a3e;
+  display: flex;
+  gap: 8px;
 }
 </style>

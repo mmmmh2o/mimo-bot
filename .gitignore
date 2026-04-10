@@ -1,2 +1,3 @@
 node_modules/\ndata/\ndist/\n.DS_Store\n*.db
 .bak/
+backups/
