@@ -7,6 +7,7 @@ on:
 
 env:
   NODE_VERSION: '20'
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/node_modules/playwright/.local-browsers
 
 jobs:
   build:
@@ -22,7 +23,7 @@ jobs:
             platform: win
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -34,20 +35,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: node_modules/playwright/.local-browsers
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-optional
 
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/node_modules/playwright/.local-browsers
-
-      - name: Verify browser bundled
-        shell: bash
-        run: |
-          echo "=== Playwright .local-browsers ==="
-          ls -la node_modules/playwright/.local-browsers/ || echo "EMPTY - browsers not found!"
-          find node_modules/playwright/.local-browsers -name "chrome*" -o -name "chromium*" | head -10
 
       - name: Build renderer
         run: npm run build:renderer
@@ -56,10 +58,6 @@ jobs:
         run: npm run build:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: List artifacts
-        shell: bash
-        run: ls -la dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -70,7 +68,6 @@ jobs:
             dist/*.deb
             dist/*.dmg
             dist/*.exe
-            dist/*.zip
           if-no-files-found: warn
 
   release:
