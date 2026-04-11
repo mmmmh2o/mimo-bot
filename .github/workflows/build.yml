@@ -14,20 +14,10 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/node_modules/playwright/.local-browsers
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: macos-latest
-            platform: mac
-          - os: windows-latest
-            platform: win
-
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+  build-full:
+    name: Build Full (含浏览器)
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -42,57 +32,123 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
+      - name: Install Playwright Chromium
         run: npx playwright install chromium
 
       - name: Verify Chromium exists
         shell: bash
         run: |
-          echo "=== Playwright browsers ==="
+          echo "=== Chromium 目录 ==="
           ls -la node_modules/playwright/.local-browsers/ || true
-          find node_modules/playwright/.local-browsers -name "chrome" -o -name "chrome.exe" || true
 
       - name: Build renderer
         run: npm run build:renderer
 
-      - name: Build app (${{ matrix.platform }})
-        run: npm run build:${{ matrix.platform }}
+      - name: Build FULL version
+        run: npx electron-builder --win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload artifacts
+      - name: Rename FULL artifacts
+        shell: bash
+        run: |
+          cd dist
+          for f in *.exe; do
+            mv "$f" "${f%.exe}-full.exe"
+          done
+          ls -lh *.exe
+
+      - name: Upload FULL artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mimo-bot-${{ matrix.platform }}
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.dmg
-            dist/*.exe
-          if-no-files-found: warn
+          name: mimo-bot-win-full
+          path: dist/*.exe
 
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  build-lite:
+    name: Build Lite (不含浏览器)
+    runs-on: windows-latest
+    timeout-minutes: 15
 
     steps:
-      - name: Download all artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer
+        run: npm run build:renderer
+
+      - name: Build LITE version
+        run: npx electron-builder --win --config electron-builder.lite.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename LITE artifacts
+        shell: bash
+        run: |
+          cd dist
+          for f in *.exe; do
+            mv "$f" "${f%.exe}-lite.exe"
+          done
+          ls -lh *.exe
+
+      - name: Upload LITE artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mimo-bot-win-lite
+          path: dist/*.exe
+
+  release:
+    name: Release
+    needs: [build-full, build-lite]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download FULL artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: mimo-bot-win-full
+          path: artifacts/full
+
+      - name: Download LITE artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mimo-bot-win-lite
+          path: artifacts/lite
+
+      - name: List artifacts
+        run: |
+          echo "=== FULL ===" && ls -lh artifacts/full/
+          echo "=== LITE ===" && ls -lh artifacts/lite/
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/**/*.AppImage
-            artifacts/**/*.deb
-            artifacts/**/*.dmg
-            artifacts/**/*.exe
+            artifacts/full/*.exe
+            artifacts/lite/*.exe
           draft: false
           generate_notes: true
+          body: |
+            ## MiMo Bot ${{ github.ref_name }}
+
+            📦 **两个版本，按需下载：**
+
+            | 文件 | 说明 | 包含 |
+            |------|------|------|
+            | `*-full.exe` | 完整安装包 | 应用 + Chromium 浏览器 |
+            | `*-lite.exe` | 轻量更新包 | 仅应用（不含浏览器） |
+
+            - **首次安装** → 下载 `full` 版
+            - **老用户更新** → 下载 `lite` 版（需已安装过 full 版本）
+            - 应用内自动更新会智能选择版本
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
