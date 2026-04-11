@@ -39,6 +39,8 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: 0
 
       - name: Build renderer
         run: npm run build:renderer
@@ -49,7 +51,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: List artifacts
-        run: ls -la dist/ || dir dist\
+        shell: bash
+        run: ls -la dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
