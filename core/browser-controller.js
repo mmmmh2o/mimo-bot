@@ -84,6 +84,14 @@ export class BrowserController {
     if (executablePath) {
       launchOptions.executablePath = executablePath
       log.info(`使用 Chromium: ${executablePath}`)
+    } else if (process.resourcesPath) {
+      // 打包环境下，_findChromium 可能返回 null（ASAR 内模块无法正确递归搜索）。
+      // 设置 PLAYWRIGHT_BROWSERS_PATH 让 Playwright 定位 extraResources 中的浏览器。
+      const bundledBrowserDir = join(process.resourcesPath, 'chromium')
+      if (existsSync(bundledBrowserDir)) {
+        process.env.PLAYWRIGHT_BROWSERS_PATH = bundledBrowserDir
+        log.info(`设置 PLAYWRIGHT_BROWSERS_PATH: ${bundledBrowserDir}`)
+      }
     }
 
     this._browser = await chromium.launch(launchOptions)
