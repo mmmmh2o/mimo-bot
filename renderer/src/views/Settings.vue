@@ -313,7 +313,7 @@ const saveSettings = async () => {
   try {
     for (const [section, values] of Object.entries(settings)) {
       if (section !== 'extensions') {
-        await window.api.settings.set(section, values)
+        await window.api.settings.set(section, JSON.parse(JSON.stringify(values)))
       }
     }
     ElMessage.success('设置已保存')
