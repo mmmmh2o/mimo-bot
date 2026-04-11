@@ -40,7 +40,14 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
         env:
-          PLAYWRIGHT_BROWSERS_PATH: 0
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/node_modules/playwright/.local-browsers
+
+      - name: Verify browser bundled
+        shell: bash
+        run: |
+          echo "=== Playwright .local-browsers ==="
+          ls -la node_modules/playwright/.local-browsers/ || echo "EMPTY - browsers not found!"
+          find node_modules/playwright/.local-browsers -name "chrome*" -o -name "chromium*" | head -10
 
       - name: Build renderer
         run: npm run build:renderer
@@ -88,6 +95,6 @@ jobs:
             artifacts/**/*.dmg
             artifacts/**/*.exe
           draft: false
-          generate_release_notes: true
+          generate_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
