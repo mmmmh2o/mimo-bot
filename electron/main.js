@@ -15,6 +15,7 @@ import { GitSync } from '../core/git-sync.js'
 import { PluginManager } from '../core/plugins/plugin-manager.js'
 import { SettingsManager } from '../core/settings.js'
 import { Scraper } from '../core/scraper.js'
+import { initUpdater, checkOnStartup } from './updater.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -339,6 +340,10 @@ app.whenReady().then(async () => {
   registerIPC()
   await initServices()
   await createWindow()
+
+  // 初始化自动更新（增量更新）
+  initUpdater(mainWindow)
+  checkOnStartup()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

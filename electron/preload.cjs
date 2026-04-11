@@ -74,6 +74,20 @@ const api = {
     openDataFolder: () => ipcRenderer.invoke('app:openDataFolder'),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
   },
+  updater: {
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    getVersion: () => ipcRenderer.invoke('updater:getVersion'),
+    setChannel: (channel) => ipcRenderer.invoke('updater:setChannel', channel),
+    onChecking: (cb) => ipcRenderer.on('updater:checking', (_, data) => cb(data)),
+    onAvailable: (cb) => ipcRenderer.on('updater:available', (_, data) => cb(data)),
+    onNotAvailable: (cb) => ipcRenderer.on('updater:not-available', (_, data) => cb(data)),
+    onProgress: (cb) => ipcRenderer.on('updater:progress', (_, data) => cb(data)),
+    onDownloaded: (cb) => ipcRenderer.on('updater:downloaded', (_, data) => cb(data)),
+    onFallback: (cb) => ipcRenderer.on('updater:fallback', (_, data) => cb(data)),
+    onError: (cb) => ipcRenderer.on('updater:error', (_, data) => cb(data)),
+  },
   on: (event, callback) => {
     ipcRenderer.on(event, (_, data) => callback(data))
   },

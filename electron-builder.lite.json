@@ -1,0 +1,76 @@
+{
+  "appId": "com.mimo.bot",
+  "productName": "MiMo Bot",
+  "copyright": "Copyright © 2026 MiMo Bot",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "electron/**/*",
+    "core/**/*",
+    "renderer/dist/**/*",
+    "!**/node_modules/**/{test,__tests__,tests}/**",
+    "!**/node_modules/*.d.ts",
+    "!**/node_modules/.bin/**"
+  ],
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node",
+    "**/better-sqlite3/**"
+  ],
+  "extraResources": [],
+  "win": {
+    "target": [{ "target": "nsis", "arch": ["x64"] }],
+    "icon": "renderer/public/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "renderer/public/icon.ico",
+    "uninstallerIcon": "renderer/public/icon.ico",
+    "installerHeaderIcon": "renderer/public/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "MiMo Bot",
+    "include": "installer/win-install.nsh"
+  },
+  "mac": {
+    "target": [{ "target": "dmg", "arch": ["x64"] }],
+    "icon": "renderer/public/icon.icns",
+    "category": "public.app-category.productivity",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "installer/entitlements.mac.plist",
+    "entitlementsInherit": "installer/entitlements.mac.plist"
+  },
+  "dmg": {
+    "title": "MiMo Bot",
+    "icon": "renderer/public/icon.icns",
+    "contents": [
+      { "x": 130, "y": 220 },
+      { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+    ],
+    "writeUpdateInfo": false
+  },
+  "linux": {
+    "target": [
+      { "target": "AppImage", "arch": ["x64"] },
+      { "target": "deb", "arch": ["x64"] }
+    ],
+    "icon": "renderer/public/icons",
+    "category": "Utility",
+    "desktop": {
+      "Name": "MiMo Bot",
+      "Comment": "网页特化版 AI 自动化工具",
+      "Categories": "Utility;"
+    },
+    "maintainer": "bot@mimo.local"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "mmmmh2o",
+    "repo": "mimo-bot",
+    "releaseType": "release"
+  }
+}

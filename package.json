@@ -16,6 +16,8 @@
     "build:win": "npm run build:renderer && electron-builder --win",
     "build:mac": "npm run build:renderer && electron-builder --mac",
     "build:all": "npm run build:renderer && electron-builder --mac --win --linux",
+    "build:release": "node scripts/build-release.js --win",
+    "build:release:publish": "node scripts/build-release.js --win --publish",
     "postinstall": "electron-builder install-app-deps || true",
     "lint": "eslint .",
     "test": "node --test core/__tests__/**/*.test.js"
@@ -23,6 +25,7 @@
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "electron-log": "^5.0.0",
+    "electron-updater": "^6.1.0",
     "node-cron": "^3.0.3",
     "playwright": "^1.45.0",
     "simple-git": "^3.25.0",
@@ -157,7 +160,9 @@
     "publish": {
       "provider": "github",
       "owner": "mmmmh2o",
-      "repo": "mimo-bot"
-    }
+      "repo": "mimo-bot",
+      "releaseType": "release"
+    },
+    "differentialPackage": true
   }
 }
