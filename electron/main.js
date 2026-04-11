@@ -60,7 +60,7 @@ async function createWindow() {
     icon: getIconPath(),
     show: false, // 加载完再显示，避免白屏
     webPreferences: {
-      preload: join(__dirname, 'preload.js'),
+      preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // Playwright 需要
