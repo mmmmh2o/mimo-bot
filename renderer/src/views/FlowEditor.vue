@@ -436,7 +436,7 @@ const templates = {
     nodes: [
       {
         id: 'start-1', type: 'start', position: { x: 100, y: 200 },
-        data: { continueOnError: false }, label: '开始'
+        data: { continueOnError: false }, label: '🟢 开始'
       },
       {
         id: 'send-1', type: 'send-message', position: { x: 350, y: 200 },
@@ -444,7 +444,7 @@ const templates = {
           content: '👋 你好！我是 MiMo Bot，有什么可以帮你的？',
           waitForReply: true, timeout: 120, outputVariable: 'userReply',
           continueOnError: false
-        }, label: '发送消息'
+        }, label: '📤 发送消息'
       },
       {
         id: 'set-1', type: 'set-variable', position: { x: 600, y: 200 },
@@ -453,11 +453,11 @@ const templates = {
           value: '收到回复: {{userReply}}',
           scope: 'output',
           continueOnError: false
-        }, label: '设置变量'
+        }, label: '📝 设置变量'
       },
       {
         id: 'end-1', type: 'end', position: { x: 850, y: 200 },
-        data: { continueOnError: false }, label: '结束'
+        data: { continueOnError: false }, label: '🏁 结束'
       },
     ],
     edges: [
@@ -473,7 +473,7 @@ const templates = {
     nodes: [
       {
         id: 'start-1', type: 'start', position: { x: 100, y: 200 },
-        data: { continueOnError: false }, label: '开始'
+        data: { continueOnError: false }, label: '🟢 开始'
       },
       {
         id: 'set-url', type: 'set-variable', position: { x: 300, y: 200 },
@@ -482,7 +482,7 @@ const templates = {
           value: 'https://news.ycombinator.com',
           scope: 'runtime',
           continueOnError: false
-        }, label: '设置目标 URL'
+        }, label: '📝 设置 URL'
       },
       {
         id: 'scrape-1', type: 'scrape', position: { x: 550, y: 200 },
@@ -491,7 +491,7 @@ const templates = {
           selector: '.titleline > a',
           outputVariable: 'titles',
           continueOnError: false
-        }, label: '抓取标题'
+        }, label: '🌐 抓取标题'
       },
       {
         id: 'save-1', type: 'save', position: { x: 800, y: 200 },
@@ -500,11 +500,11 @@ const templates = {
           path: './output/titles.txt',
           append: false,
           continueOnError: false
-        }, label: '保存结果'
+        }, label: '💾 保存结果'
       },
       {
         id: 'end-1', type: 'end', position: { x: 1050, y: 200 },
-        data: { continueOnError: false }, label: '结束'
+        data: { continueOnError: false }, label: '🏁 结束'
       },
     ],
     edges: [
@@ -521,7 +521,7 @@ const templates = {
     nodes: [
       {
         id: 'start-1', type: 'start', position: { x: 100, y: 250 },
-        data: { continueOnError: false }, label: '开始'
+        data: { continueOnError: false }, label: '🟢 开始'
       },
       {
         id: 'send-1', type: 'send-message', position: { x: 320, y: 250 },
@@ -529,7 +529,7 @@ const templates = {
           content: '输入 "帮助" 查看指令列表',
           waitForReply: true, timeout: 300, outputVariable: 'input',
           continueOnError: false
-        }, label: '提示输入'
+        }, label: '📤 提示输入'
       },
       {
         id: 'cond-1', type: 'condition', position: { x: 580, y: 250 },
@@ -537,7 +537,7 @@ const templates = {
           sourceVariable: 'input',
           condition: { type: 'contains', target: '帮助' },
           continueOnError: false
-        }, label: '判断内容'
+        }, label: '🔀 判断内容'
       },
       {
         id: 'send-help', type: 'send-message', position: { x: 820, y: 130 },
@@ -545,7 +545,7 @@ const templates = {
           content: '📖 指令列表：\n- 帮助：显示此消息\n- 状态：查看运行状态\n- 退出：结束对话',
           waitForReply: false,
           continueOnError: false
-        }, label: '发送帮助'
+        }, label: '📤 发送帮助'
       },
       {
         id: 'send-default', type: 'send-message', position: { x: 820, y: 370 },
@@ -553,11 +553,11 @@ const templates = {
           content: '收到：{{input}}。输入 "帮助" 查看指令。',
           waitForReply: false,
           continueOnError: false
-        }, label: '默认回复'
+        }, label: '📤 默认回复'
       },
       {
         id: 'end-1', type: 'end', position: { x: 1080, y: 250 },
-        data: { continueOnError: false }, label: '结束'
+        data: { continueOnError: false }, label: '🏁 结束'
       },
     ],
     edges: [
@@ -717,7 +717,7 @@ const onDrop = (event) => {
     type: nodeType.type,
     position,
     data: defaultNodeData(nodeType.type),
-    label: nodeType.label,
+    label: `${nodeType.icon} ${nodeType.label}`,
   }
   nodes.value = [...nodes.value, newNode]
 }
@@ -1138,5 +1138,112 @@ onMounted(async () => {
   color: #484f58;
   text-align: center;
   padding: 40px;
+}
+
+/* ====== VueFlow 节点暗色主题 ====== */
+:deep(.vue-flow__node) {
+  background: #161b22;
+  border: 2px solid #30363d;
+  border-radius: 10px;
+  color: #e6edf3;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 18px;
+  min-width: 140px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+}
+
+:deep(.vue-flow__node:hover) {
+  border-color: #58a6ff;
+  box-shadow: 0 4px 16px rgba(88, 166, 255, 0.15);
+}
+
+:deep(.vue-flow__node.selected) {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3), 0 4px 16px rgba(88, 166, 255, 0.2);
+}
+
+/* 节点类型颜色 */
+:deep(.vue-flow__node-start) {
+  border-color: #238636;
+  background: linear-gradient(135deg, #0d1117, #0f2a15);
+}
+
+:deep(.vue-flow__node-end) {
+  border-color: #da3633;
+  background: linear-gradient(135deg, #0d1117, #2d1214);
+}
+
+:deep(.vue-flow__node-send-message) {
+  border-color: #1f6feb;
+}
+
+:deep(.vue-flow__node-condition) {
+  border-color: #d29922;
+}
+
+:deep(.vue-flow__node-scrape) {
+  border-color: #8b5cf6;
+}
+
+/* 连线样式 */
+:deep(.vue-flow__edge-path) {
+  stroke: #58a6ff;
+  stroke-width: 2;
+}
+
+:deep(.vue-flow__edge:hover .vue-flow__edge-path) {
+  stroke: #79c0ff;
+  stroke-width: 3;
+}
+
+:deep(.vue-flow__connection-line) {
+  stroke: #58a6ff;
+  stroke-width: 2;
+}
+
+/* 连线箭头 */
+:deep(.vue-flow__arrowhead) {
+  fill: #58a6ff;
+}
+
+/* 连接点 */
+:deep(.vue-flow__handle) {
+  width: 10px;
+  height: 10px;
+  background: #30363d;
+  border: 2px solid #58a6ff;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+:deep(.vue-flow__handle:hover) {
+  background: #58a6ff;
+  transform: scale(1.3);
+}
+
+/* 控件按钮 */
+:deep(.vue-flow__controls) {
+  background: #161b22;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:deep(.vue-flow__controls-button) {
+  background: #161b22;
+  border-color: #21262d;
+  fill: #8b949e;
+}
+
+:deep(.vue-flow__controls-button:hover) {
+  background: #1c2333;
+  fill: #e6edf3;
+}
+
+:deep(.vue-flow__controls-button svg) {
+  fill: #8b949e;
 }
 </style>
