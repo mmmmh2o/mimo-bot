@@ -5,7 +5,7 @@
  */
 import { chromium } from 'playwright'
 import { getAdapter } from './adapters/index.js'
-import { existsSync } from 'fs'
+import { existsSync, readdirSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import log from 'electron-log'
@@ -111,20 +111,17 @@ export class BrowserController {
    * 查找 Chromium 可执行文件（打包环境兼容）
    */
   _findChromium() {
-    // 1. 打包环境：检查 resources 目录
+    // 1. 打包环境：递归搜索 resources/chromium 目录
+    //    Playwright 目录结构形如 chromium-1148/chrome-win/chrome.exe
     if (process.resourcesPath) {
-      const candidates = [
-        join(process.resourcesPath, 'chromium', 'chrome'),
-        join(process.resourcesPath, 'chromium', 'chromium'),
-        join(process.resourcesPath, 'chromium', 'chrome.exe'),
-      ]
-      for (const p of candidates) {
-        if (existsSync(p)) return p
+      const chromiumDir = join(process.resourcesPath, 'chromium')
+      if (existsSync(chromiumDir)) {
+        const found = this._findExecutable(chromiumDir)
+        if (found) return found
       }
     }
 
-    // 2. 开发环境：使用 Playwright 自带浏览器（默认行为）
-    // 3. 系统浏览器
+    // 2. 系统浏览器
     const systemPaths = {
       linux: ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'],
       darwin: ['/Applications/Chromium.app/Contents/MacOS/Chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
@@ -136,6 +133,33 @@ export class BrowserController {
     }
 
     return null // 回退到 Playwright 默认
+  }
+
+  /**
+   * 递归查找目录中的 Chromium 可执行文件
+   */
+  _findExecutable(dir, depth = 0) {
+    if (depth > 5) return null
+    const targets = process.platform === 'win32'
+      ? ['chrome.exe']
+      : ['chrome', 'chromium']
+    try {
+      const entries = readdirSync(dir)
+      for (const entry of entries) {
+        const full = join(dir, entry)
+        if (targets.includes(entry) && existsSync(full)) return full
+      }
+      for (const entry of entries) {
+        const full = join(dir, entry)
+        try {
+          if (statSync(full).isDirectory()) {
+            const found = this._findExecutable(full, depth + 1)
+            if (found) return found
+          }
+        } catch {}
+      }
+    } catch {}
+    return null
   }
 
   /**
