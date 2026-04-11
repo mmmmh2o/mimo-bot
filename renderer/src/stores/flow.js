@@ -70,12 +70,14 @@ export const useFlowStore = defineStore('flow', {
     async saveFlow() {
       if (!this.currentFlow) return
       try {
-        await window.api.flow.save({
+        // 深拷贝移除 Vue Proxy，否则 IPC structured clone 会报 "An object could not be cloned"
+        const payload = JSON.parse(JSON.stringify({
           ...this.currentFlow,
           nodes: this.nodes,
           edges: this.edges,
           variables: this.variables,
-        })
+        }))
+        await window.api.flow.save(payload)
         await this.loadFlowList()
       } catch (e) {
         this.error = e.message
