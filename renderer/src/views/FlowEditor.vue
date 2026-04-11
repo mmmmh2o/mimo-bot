@@ -13,18 +13,30 @@
               :value="flow.id"
             />
           </el-select>
-          <el-button type="primary" @click="createFlow" :icon="Plus">新建流程</el-button>
+          <el-button type="primary" @click="createFlow">➕ 新建</el-button>
+          <el-dropdown @command="loadTemplate" trigger="click">
+            <el-button type="info" plain>📋 示例</el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="hello-world">👋 Hello World</el-dropdown-item>
+                <el-dropdown-item command="web-scraper">🌐 网页抓取</el-dropdown-item>
+                <el-dropdown-item command="auto-reply">💬 自动回复</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
       <div class="header-actions">
-        <el-button @click="saveFlow" :disabled="!currentFlow" :icon="Document">保存</el-button>
-        <el-button type="success" @click="runFlow" :disabled="!currentFlow || flowStore.isRunning" :icon="VideoPlay">
-          运行
+        <el-tooltip :content="!currentFlow ? '请先新建或选择一个流程' : ''" placement="bottom" :disabled="!!currentFlow">
+          <el-button @click="saveFlow" :disabled="!currentFlow">💾 保存</el-button>
+        </el-tooltip>
+        <el-button type="success" @click="runFlow" :disabled="!currentFlow || nodes.length === 0 || flowStore.isRunning">
+          ▶ 运行
         </el-button>
-        <el-button type="warning" @click="pauseFlow" v-if="flowStore.isRunning && !flowStore.isPaused" :icon="VideoPause">暂停</el-button>
-        <el-button type="primary" @click="resumeFlow" v-if="flowStore.isPaused" :icon="VideoPlay">恢复</el-button>
-        <el-button type="danger" @click="stopFlow" v-if="flowStore.isRunning" :icon="Close">停止</el-button>
-        <el-button type="danger" plain @click="deleteCurrentFlow" :disabled="!currentFlow" :icon="Delete">删除</el-button>
+        <el-button type="warning" @click="pauseFlow" v-if="flowStore.isRunning && !flowStore.isPaused">⏸ 暂停</el-button>
+        <el-button type="primary" @click="resumeFlow" v-if="flowStore.isPaused">▶ 恢复</el-button>
+        <el-button type="danger" @click="stopFlow" v-if="flowStore.isRunning">⏹ 停止</el-button>
+        <el-button type="danger" plain @click="deleteCurrentFlow" :disabled="!currentFlow">🗑️ 删除</el-button>
       </div>
     </div>
 
@@ -48,33 +60,28 @@
       <div class="node-palette">
         <div class="palette-header">
           <h3>📦 节点面板</h3>
-          <el-tooltip content="拖拽节点到右侧画布来构建流程" placement="top">
-            <el-icon class="help-icon"><QuestionFilled /></el-icon>
-          </el-tooltip>
         </div>
 
         <div v-for="group in nodeGroups" :key="group.name" class="node-group">
           <div class="group-title" @click="group.collapsed = !group.collapsed">
             <span>{{ group.icon }} {{ group.name }}</span>
-            <el-icon :class="{ 'collapsed': group.collapsed }"><ArrowDown /></el-icon>
+            <span class="collapse-arrow" :class="{ collapsed: group.collapsed }">▼</span>
           </div>
-          <transition name="collapse">
-            <div v-show="!group.collapsed" class="group-nodes">
-              <div
-                v-for="nodeType in group.nodes"
-                :key="nodeType.type"
-                class="palette-node"
-                draggable="true"
-                @dragstart="onDragStart($event, nodeType)"
-              >
-                <span class="node-icon">{{ nodeType.icon }}</span>
-                <div class="node-info">
-                  <span class="node-label">{{ nodeType.label }}</span>
-                  <span class="node-desc">{{ nodeType.desc }}</span>
-                </div>
+          <div v-show="!group.collapsed" class="group-nodes">
+            <div
+              v-for="nodeType in group.nodes"
+              :key="nodeType.type"
+              class="palette-node"
+              draggable="true"
+              @dragstart="onDragStart($event, nodeType)"
+            >
+              <span class="node-icon">{{ nodeType.icon }}</span>
+              <div class="node-info">
+                <span class="node-label">{{ nodeType.label }}</span>
+                <span class="node-desc">{{ nodeType.desc }}</span>
               </div>
             </div>
-          </transition>
+          </div>
         </div>
       </div>
 
@@ -92,7 +99,7 @@
                 <div class="step-number">1</div>
                 <div class="step-info">
                   <strong>新建流程</strong>
-                  <span>点击上方「新建流程」按钮</span>
+                  <span>点击上方「新建」或选择下方示例</span>
                 </div>
               </div>
               <div class="guide-step">
@@ -118,9 +125,14 @@
               </div>
             </div>
 
-            <el-button type="primary" size="large" @click="createFlow" class="start-btn">
-              🚀 创建第一个流程
-            </el-button>
+            <div class="quick-actions">
+              <el-button type="primary" size="large" @click="createFlow">
+                🚀 空白流程
+              </el-button>
+              <el-button size="large" @click="loadTemplate('hello-world')">
+                👋 Hello World 示例
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -128,216 +140,215 @@
         <div v-else-if="currentFlow && nodes.length === 0" class="canvas-hint">
           <div class="hint-content">
             <span class="hint-arrow">⬅️</span>
-            <span>从左侧拖拽节点到这里开始构建</span>
+            <span>从左侧拖拽节点到这里 · 或点击「📋 示例」加载模板</span>
           </div>
         </div>
 
         <VueFlow
+          v-if="currentFlow"
           v-model:nodes="nodes"
           v-model:edges="edges"
-          :default-viewport="{ zoom: 1 }"
-          fit-view-on-init
+          :default-viewport="{ zoom: 1, x: 0, y: 0 }"
+          :snap-to-grid="true"
+          :snap-grid="[20, 20]"
           @node-click="onNodeClick"
           @connect="onConnect"
           @dragover.prevent
           @drop="onDrop"
           @pane-click="selectedNode = null"
         >
-          <Background pattern-color="#2a2a3e" :gap="20" />
+          <Background :gap="20" :size="1" />
           <Controls position="bottom-left" />
-          <MiniMap position="bottom-right" />
         </VueFlow>
       </div>
 
       <!-- 节点配置面板 -->
-      <transition name="slide">
-        <div class="node-config" v-if="selectedNode">
-          <div class="config-header">
-            <h3>⚙️ 节点配置</h3>
-            <el-button size="small" type="danger" plain @click="deleteNode" :icon="Delete">删除</el-button>
-          </div>
-          <div class="config-type-badge">
-            <span class="type-icon">{{ getNodeIcon(selectedNode.type) }}</span>
-            <span>{{ getNodeLabel(selectedNode.type) }}</span>
-          </div>
-          <el-form label-position="top" size="small">
-            <el-form-item label="节点 ID">
-              <el-input v-model="selectedNode.id" disabled />
-            </el-form-item>
-
-            <!-- send-message 配置 -->
-            <template v-if="selectedNode.type === 'send-message'">
-              <el-form-item label="消息内容">
-                <el-input v-model="selectedNode.data.content" type="textarea" :rows="4" placeholder="支持 {{变量}} 插值" />
-              </el-form-item>
-              <el-form-item label="等待回复">
-                <el-switch v-model="selectedNode.data.waitForReply" />
-              </el-form-item>
-              <el-form-item label="回复超时 (秒)" v-if="selectedNode.data.waitForReply">
-                <el-input-number v-model="selectedNode.data.timeout" :min="10" :max="600" />
-              </el-form-item>
-              <el-form-item label="输出变量名" v-if="selectedNode.data.waitForReply">
-                <el-input v-model="selectedNode.data.outputVariable" placeholder="reply" />
-              </el-form-item>
-            </template>
-
-            <!-- wait-reply 配置 -->
-            <template v-if="selectedNode.type === 'wait-reply'">
-              <el-form-item label="超时 (秒)">
-                <el-input-number v-model="selectedNode.data.timeout" :min="10" :max="600" />
-              </el-form-item>
-              <el-form-item label="输出变量名">
-                <el-input v-model="selectedNode.data.outputVariable" placeholder="reply" />
-              </el-form-item>
-            </template>
-
-            <!-- condition 配置 -->
-            <template v-if="selectedNode.type === 'condition'">
-              <el-form-item label="源变量">
-                <el-input v-model="selectedNode.data.sourceVariable" placeholder="变量名" />
-              </el-form-item>
-              <el-form-item label="条件类型">
-                <el-select v-model="selectedNode.data.condition.type">
-                  <el-option label="包含" value="contains" />
-                  <el-option label="不包含" value="not-contains" />
-                  <el-option label="等于" value="equals" />
-                  <el-option label="正则匹配" value="regex" />
-                  <el-option label="大于" value="greater-than" />
-                  <el-option label="小于" value="less-than" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="目标值">
-                <el-input v-model="selectedNode.data.condition.target" />
-              </el-form-item>
-            </template>
-
-            <!-- loop 配置 -->
-            <template v-if="selectedNode.type === 'loop'">
-              <el-form-item label="数据源变量">
-                <el-input v-model="selectedNode.data.sourceVariable" />
-              </el-form-item>
-              <el-form-item label="最大迭代次数">
-                <el-input-number v-model="selectedNode.data.maxIterations" :min="1" :max="1000" />
-              </el-form-item>
-              <el-form-item label="当前项变量名">
-                <el-input v-model="selectedNode.data.itemVariable" placeholder="item" />
-              </el-form-item>
-            </template>
-
-            <!-- extract 配置 -->
-            <template v-if="selectedNode.type === 'extract'">
-              <el-form-item label="源变量">
-                <el-input v-model="selectedNode.data.sourceVariable" />
-              </el-form-item>
-              <el-form-item label="提取规则">
-                <div v-for="(rule, i) in (selectedNode.data.rules || [])" :key="i" class="rule-item">
-                  <el-select v-model="rule.type" style="width:80px">
-                    <el-option label="正则" value="regex" />
-                    <el-option label="代码块" value="code-block" />
-                  </el-select>
-                  <el-input v-model="rule.pattern" placeholder="正则或语言" style="flex:1" />
-                  <el-input v-model="rule.variable" placeholder="变量名" style="width:100px" />
-                  <el-button size="small" type="danger" plain @click="selectedNode.data.rules.splice(i, 1)">×</el-button>
-                </div>
-                <el-button size="small" @click="addExtractRule">+ 添加规则</el-button>
-              </el-form-item>
-            </template>
-
-            <!-- read-file 配置 -->
-            <template v-if="selectedNode.type === 'read-file'">
-              <el-form-item label="文件路径">
-                <el-input v-model="selectedNode.data.path" placeholder="支持 {{变量}}" />
-              </el-form-item>
-              <el-form-item label="输出变量名">
-                <el-input v-model="selectedNode.data.outputVariable" />
-              </el-form-item>
-            </template>
-
-            <!-- save 配置 -->
-            <template v-if="selectedNode.type === 'save'">
-              <el-form-item label="变量名">
-                <el-input v-model="selectedNode.data.variable" />
-              </el-form-item>
-              <el-form-item label="保存路径">
-                <el-input v-model="selectedNode.data.path" />
-              </el-form-item>
-              <el-form-item label="追加模式">
-                <el-switch v-model="selectedNode.data.append" />
-              </el-form-item>
-            </template>
-
-            <!-- set-variable 配置 -->
-            <template v-if="selectedNode.type === 'set-variable'">
-              <el-form-item label="变量名">
-                <el-input v-model="selectedNode.data.name" />
-              </el-form-item>
-              <el-form-item label="值">
-                <el-input v-model="selectedNode.data.value" type="textarea" :rows="3" />
-              </el-form-item>
-              <el-form-item label="作用域">
-                <el-select v-model="selectedNode.data.scope">
-                  <el-option label="输入" value="input" />
-                  <el-option label="运行时" value="runtime" />
-                  <el-option label="输出" value="output" />
-                  <el-option label="持久化" value="persistent" />
-                </el-select>
-              </el-form-item>
-            </template>
-
-            <!-- delay 配置 -->
-            <template v-if="selectedNode.type === 'delay'">
-              <el-form-item label="延时 (秒)">
-                <el-input-number v-model="selectedNode.data.seconds" :min="1" :max="3600" />
-              </el-form-item>
-            </template>
-
-            <!-- scrape 配置 -->
-            <template v-if="selectedNode.type === 'scrape'">
-              <el-form-item label="URL">
-                <el-input v-model="selectedNode.data.url" placeholder="支持 {{变量}}" />
-              </el-form-item>
-              <el-form-item label="选择器">
-                <el-input v-model="selectedNode.data.selector" placeholder="CSS 选择器" />
-              </el-form-item>
-              <el-form-item label="输出变量名">
-                <el-input v-model="selectedNode.data.outputVariable" />
-              </el-form-item>
-            </template>
-
-            <!-- run-command 配置 -->
-            <template v-if="selectedNode.type === 'run-command'">
-              <el-form-item label="命令">
-                <el-input v-model="selectedNode.data.command" type="textarea" :rows="2" />
-              </el-form-item>
-              <el-form-item label="工作目录">
-                <el-input v-model="selectedNode.data.workingDir" />
-              </el-form-item>
-              <el-form-item label="超时 (秒)">
-                <el-input-number v-model="selectedNode.data.timeout" :min="5" :max="3600" />
-              </el-form-item>
-              <el-form-item label="输出变量名">
-                <el-input v-model="selectedNode.data.outputVariable" />
-              </el-form-item>
-            </template>
-
-            <!-- human-handoff 配置 -->
-            <template v-if="selectedNode.type === 'human-handoff'">
-              <el-form-item label="提示消息">
-                <el-input v-model="selectedNode.data.message" type="textarea" :rows="2" />
-              </el-form-item>
-            </template>
-
-            <!-- 通用：出错继续 -->
-            <el-form-item label="出错时继续">
-              <el-switch v-model="selectedNode.data.continueOnError" />
-            </el-form-item>
-          </el-form>
+      <div class="node-config" v-if="selectedNode">
+        <div class="config-header">
+          <h3>⚙️ 节点配置</h3>
+          <el-button size="small" type="danger" plain @click="deleteNode">🗑️ 删除</el-button>
         </div>
-      </transition>
+        <div class="config-type-badge">
+          <span class="type-icon">{{ getNodeIcon(selectedNode.type) }}</span>
+          <span>{{ getNodeLabel(selectedNode.type) }}</span>
+        </div>
+        <el-form label-position="top" size="small">
+          <el-form-item label="节点 ID">
+            <el-input :model-value="selectedNode.id" disabled />
+          </el-form-item>
+
+          <!-- send-message 配置 -->
+          <template v-if="selectedNode.type === 'send-message'">
+            <el-form-item label="消息内容">
+              <el-input v-model="selectedNode.data.content" type="textarea" :rows="4" placeholder="支持 {{变量}} 插值" />
+            </el-form-item>
+            <el-form-item label="等待回复">
+              <el-switch v-model="selectedNode.data.waitForReply" />
+            </el-form-item>
+            <el-form-item label="回复超时 (秒)" v-if="selectedNode.data.waitForReply">
+              <el-input-number v-model="selectedNode.data.timeout" :min="10" :max="600" />
+            </el-form-item>
+            <el-form-item label="输出变量名" v-if="selectedNode.data.waitForReply">
+              <el-input v-model="selectedNode.data.outputVariable" placeholder="reply" />
+            </el-form-item>
+          </template>
+
+          <!-- wait-reply 配置 -->
+          <template v-if="selectedNode.type === 'wait-reply'">
+            <el-form-item label="超时 (秒)">
+              <el-input-number v-model="selectedNode.data.timeout" :min="10" :max="600" />
+            </el-form-item>
+            <el-form-item label="输出变量名">
+              <el-input v-model="selectedNode.data.outputVariable" placeholder="reply" />
+            </el-form-item>
+          </template>
+
+          <!-- condition 配置 -->
+          <template v-if="selectedNode.type === 'condition'">
+            <el-form-item label="源变量">
+              <el-input v-model="selectedNode.data.sourceVariable" placeholder="变量名" />
+            </el-form-item>
+            <el-form-item label="条件类型">
+              <el-select v-model="selectedNode.data.condition.type">
+                <el-option label="包含" value="contains" />
+                <el-option label="不包含" value="not-contains" />
+                <el-option label="等于" value="equals" />
+                <el-option label="正则匹配" value="regex" />
+                <el-option label="大于" value="greater-than" />
+                <el-option label="小于" value="less-than" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="目标值">
+              <el-input v-model="selectedNode.data.condition.target" />
+            </el-form-item>
+          </template>
+
+          <!-- loop 配置 -->
+          <template v-if="selectedNode.type === 'loop'">
+            <el-form-item label="数据源变量">
+              <el-input v-model="selectedNode.data.sourceVariable" />
+            </el-form-item>
+            <el-form-item label="最大迭代次数">
+              <el-input-number v-model="selectedNode.data.maxIterations" :min="1" :max="1000" />
+            </el-form-item>
+            <el-form-item label="当前项变量名">
+              <el-input v-model="selectedNode.data.itemVariable" placeholder="item" />
+            </el-form-item>
+          </template>
+
+          <!-- extract 配置 -->
+          <template v-if="selectedNode.type === 'extract'">
+            <el-form-item label="源变量">
+              <el-input v-model="selectedNode.data.sourceVariable" />
+            </el-form-item>
+            <el-form-item label="提取规则">
+              <div v-for="(rule, i) in (selectedNode.data.rules || [])" :key="i" class="rule-item">
+                <el-select v-model="rule.type" style="width:80px">
+                  <el-option label="正则" value="regex" />
+                  <el-option label="代码块" value="code-block" />
+                </el-select>
+                <el-input v-model="rule.pattern" placeholder="正则或语言" style="flex:1" />
+                <el-input v-model="rule.variable" placeholder="变量名" style="width:100px" />
+                <el-button size="small" type="danger" plain @click="selectedNode.data.rules.splice(i, 1)">×</el-button>
+              </div>
+              <el-button size="small" @click="addExtractRule">+ 添加规则</el-button>
+            </el-form-item>
+          </template>
+
+          <!-- read-file 配置 -->
+          <template v-if="selectedNode.type === 'read-file'">
+            <el-form-item label="文件路径">
+              <el-input v-model="selectedNode.data.path" placeholder="支持 {{变量}}" />
+            </el-form-item>
+            <el-form-item label="输出变量名">
+              <el-input v-model="selectedNode.data.outputVariable" />
+            </el-form-item>
+          </template>
+
+          <!-- save 配置 -->
+          <template v-if="selectedNode.type === 'save'">
+            <el-form-item label="变量名">
+              <el-input v-model="selectedNode.data.variable" />
+            </el-form-item>
+            <el-form-item label="保存路径">
+              <el-input v-model="selectedNode.data.path" />
+            </el-form-item>
+            <el-form-item label="追加模式">
+              <el-switch v-model="selectedNode.data.append" />
+            </el-form-item>
+          </template>
+
+          <!-- set-variable 配置 -->
+          <template v-if="selectedNode.type === 'set-variable'">
+            <el-form-item label="变量名">
+              <el-input v-model="selectedNode.data.name" />
+            </el-form-item>
+            <el-form-item label="值">
+              <el-input v-model="selectedNode.data.value" type="textarea" :rows="3" />
+            </el-form-item>
+            <el-form-item label="作用域">
+              <el-select v-model="selectedNode.data.scope">
+                <el-option label="输入" value="input" />
+                <el-option label="运行时" value="runtime" />
+                <el-option label="输出" value="output" />
+                <el-option label="持久化" value="persistent" />
+              </el-select>
+            </el-form-item>
+          </template>
+
+          <!-- delay 配置 -->
+          <template v-if="selectedNode.type === 'delay'">
+            <el-form-item label="延时 (秒)">
+              <el-input-number v-model="selectedNode.data.seconds" :min="1" :max="3600" />
+            </el-form-item>
+          </template>
+
+          <!-- scrape 配置 -->
+          <template v-if="selectedNode.type === 'scrape'">
+            <el-form-item label="URL">
+              <el-input v-model="selectedNode.data.url" placeholder="支持 {{变量}}" />
+            </el-form-item>
+            <el-form-item label="选择器">
+              <el-input v-model="selectedNode.data.selector" placeholder="CSS 选择器" />
+            </el-form-item>
+            <el-form-item label="输出变量名">
+              <el-input v-model="selectedNode.data.outputVariable" />
+            </el-form-item>
+          </template>
+
+          <!-- run-command 配置 -->
+          <template v-if="selectedNode.type === 'run-command'">
+            <el-form-item label="命令">
+              <el-input v-model="selectedNode.data.command" type="textarea" :rows="2" />
+            </el-form-item>
+            <el-form-item label="工作目录">
+              <el-input v-model="selectedNode.data.workingDir" />
+            </el-form-item>
+            <el-form-item label="超时 (秒)">
+              <el-input-number v-model="selectedNode.data.timeout" :min="5" :max="3600" />
+            </el-form-item>
+            <el-form-item label="输出变量名">
+              <el-input v-model="selectedNode.data.outputVariable" />
+            </el-form-item>
+          </template>
+
+          <!-- human-handoff 配置 -->
+          <template v-if="selectedNode.type === 'human-handoff'">
+            <el-form-item label="提示消息">
+              <el-input v-model="selectedNode.data.message" type="textarea" :rows="2" />
+            </el-form-item>
+          </template>
+
+          <!-- 通用：出错继续 -->
+          <el-form-item label="出错时继续">
+            <el-switch v-model="selectedNode.data.continueOnError" />
+          </el-form-item>
+        </el-form>
+      </div>
     </div>
 
     <!-- 运行日志抽屉 -->
-    <el-drawer v-model="showLogs" title="运行日志" size="400px" direction="rtl">
+    <el-drawer v-model="showLogs" title="📋 运行日志" size="400px" direction="rtl">
       <div class="run-logs">
         <div
           v-for="(log, i) in flowStore.logs"
@@ -348,7 +359,7 @@
           <span class="log-time">{{ log.time }}</span>
           <span class="log-msg">{{ log.message }}</span>
         </div>
-        <div v-if="flowStore.logs.length === 0" class="log-empty">暂无日志</div>
+        <div v-if="flowStore.logs.length === 0" class="log-empty">暂无日志，运行流程后将在此显示</div>
       </div>
     </el-drawer>
   </div>
@@ -359,13 +370,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { MiniMap } from '@vue-flow/minimap'
 import { useFlowStore } from '@/stores/flow'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Plus, Delete, Document, VideoPlay, VideoPause, Close,
-  QuestionFilled, ArrowDown
-} from '@element-plus/icons-vue'
 
 const flowStore = useFlowStore()
 
@@ -376,7 +382,7 @@ const edges = computed({ get: () => flowStore.edges, set: (v) => flowStore.edges
 const selectedNode = ref(null)
 const showLogs = ref(false)
 
-// 分组节点 — 用 reactive 以便折叠切换
+// 分组节点
 const nodeGroups = reactive([
   {
     name: '流程控制',
@@ -422,6 +428,151 @@ const nodeGroups = reactive([
   },
 ])
 
+// ===== 示例模板 =====
+const templates = {
+  'hello-world': {
+    name: 'Hello World 示例',
+    description: '最简单的流程：发送消息 → 等待回复 → 输出结果',
+    nodes: [
+      {
+        id: 'start-1', type: 'start', position: { x: 100, y: 200 },
+        data: { continueOnError: false }, label: '开始'
+      },
+      {
+        id: 'send-1', type: 'send-message', position: { x: 350, y: 200 },
+        data: {
+          content: '👋 你好！我是 MiMo Bot，有什么可以帮你的？',
+          waitForReply: true, timeout: 120, outputVariable: 'userReply',
+          continueOnError: false
+        }, label: '发送消息'
+      },
+      {
+        id: 'set-1', type: 'set-variable', position: { x: 600, y: 200 },
+        data: {
+          name: 'greeting',
+          value: '收到回复: {{userReply}}',
+          scope: 'output',
+          continueOnError: false
+        }, label: '设置变量'
+      },
+      {
+        id: 'end-1', type: 'end', position: { x: 850, y: 200 },
+        data: { continueOnError: false }, label: '结束'
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'start-1', target: 'send-1' },
+      { id: 'e2', source: 'send-1', target: 'set-1' },
+      { id: 'e3', source: 'set-1', target: 'end-1' },
+    ]
+  },
+
+  'web-scraper': {
+    name: '网页抓取示例',
+    description: '打开网页 → 抓取内容 → 提取数据 → 保存结果',
+    nodes: [
+      {
+        id: 'start-1', type: 'start', position: { x: 100, y: 200 },
+        data: { continueOnError: false }, label: '开始'
+      },
+      {
+        id: 'set-url', type: 'set-variable', position: { x: 300, y: 200 },
+        data: {
+          name: 'targetUrl',
+          value: 'https://news.ycombinator.com',
+          scope: 'runtime',
+          continueOnError: false
+        }, label: '设置目标 URL'
+      },
+      {
+        id: 'scrape-1', type: 'scrape', position: { x: 550, y: 200 },
+        data: {
+          url: '{{targetUrl}}',
+          selector: '.titleline > a',
+          outputVariable: 'titles',
+          continueOnError: false
+        }, label: '抓取标题'
+      },
+      {
+        id: 'save-1', type: 'save', position: { x: 800, y: 200 },
+        data: {
+          variable: 'titles',
+          path: './output/titles.txt',
+          append: false,
+          continueOnError: false
+        }, label: '保存结果'
+      },
+      {
+        id: 'end-1', type: 'end', position: { x: 1050, y: 200 },
+        data: { continueOnError: false }, label: '结束'
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'start-1', target: 'set-url' },
+      { id: 'e2', source: 'set-url', target: 'scrape-1' },
+      { id: 'e3', source: 'scrape-1', target: 'save-1' },
+      { id: 'e4', source: 'save-1', target: 'end-1' },
+    ]
+  },
+
+  'auto-reply': {
+    name: '自动回复示例',
+    description: '等待输入 → 条件判断 → 不同回复 → 循环',
+    nodes: [
+      {
+        id: 'start-1', type: 'start', position: { x: 100, y: 250 },
+        data: { continueOnError: false }, label: '开始'
+      },
+      {
+        id: 'send-1', type: 'send-message', position: { x: 320, y: 250 },
+        data: {
+          content: '输入 "帮助" 查看指令列表',
+          waitForReply: true, timeout: 300, outputVariable: 'input',
+          continueOnError: false
+        }, label: '提示输入'
+      },
+      {
+        id: 'cond-1', type: 'condition', position: { x: 580, y: 250 },
+        data: {
+          sourceVariable: 'input',
+          condition: { type: 'contains', target: '帮助' },
+          continueOnError: false
+        }, label: '判断内容'
+      },
+      {
+        id: 'send-help', type: 'send-message', position: { x: 820, y: 130 },
+        data: {
+          content: '📖 指令列表：\n- 帮助：显示此消息\n- 状态：查看运行状态\n- 退出：结束对话',
+          waitForReply: false,
+          continueOnError: false
+        }, label: '发送帮助'
+      },
+      {
+        id: 'send-default', type: 'send-message', position: { x: 820, y: 370 },
+        data: {
+          content: '收到：{{input}}。输入 "帮助" 查看指令。',
+          waitForReply: false,
+          continueOnError: false
+        }, label: '默认回复'
+      },
+      {
+        id: 'end-1', type: 'end', position: { x: 1080, y: 250 },
+        data: { continueOnError: false }, label: '结束'
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'start-1', target: 'send-1' },
+      { id: 'e2', source: 'send-1', target: 'cond-1' },
+      { id: 'e3', source: 'cond-1', target: 'send-help', label: '包含' },
+      { id: 'e4', source: 'cond-1', target: 'send-default', label: '其他' },
+      { id: 'e5', source: 'send-help', target: 'end-1' },
+      { id: 'e6', source: 'send-default', target: 'end-1' },
+    ]
+  },
+}
+
+// ===== 工具函数 =====
+
 const getNodeIcon = (type) => {
   for (const g of nodeGroups) {
     const n = g.nodes.find(n => n.type === type)
@@ -458,6 +609,8 @@ const defaultNodeData = (type) => {
   return { ...defaults[type], continueOnError: false }
 }
 
+// ===== 操作 =====
+
 const loadFlow = async () => {
   if (currentFlowId.value) {
     await flowStore.loadFlow(currentFlowId.value)
@@ -468,7 +621,26 @@ const loadFlow = async () => {
 const createFlow = () => {
   flowStore.createFlow()
   currentFlowId.value = flowStore.currentFlow.id
-  ElMessage.success('新流程已创建')
+  ElMessage.success('新流程已创建，从左侧拖拽节点开始构建')
+}
+
+const loadTemplate = async (templateId) => {
+  const tpl = templates[templateId]
+  if (!tpl) return
+
+  flowStore.currentFlow = {
+    id: `flow-${Date.now()}`,
+    name: tpl.name,
+    description: tpl.description,
+    createdAt: new Date().toISOString(),
+  }
+  // 深拷贝避免引用问题
+  flowStore.nodes = JSON.parse(JSON.stringify(tpl.nodes))
+  flowStore.edges = JSON.parse(JSON.stringify(tpl.edges))
+  flowStore.variables = {}
+  currentFlowId.value = flowStore.currentFlow.id
+  selectedNode.value = null
+  ElMessage.success(`已加载示例「${tpl.name}」，点击节点查看配置`)
 }
 
 const saveFlow = async () => {
@@ -519,19 +691,21 @@ const onNodeClick = ({ node }) => {
 }
 
 const onConnect = (params) => {
-  edges.value.push({
+  edges.value = [...edges.value, {
     id: `e-${params.source}-${params.target}`,
-    ...params,
-  })
+    source: params.source,
+    target: params.target,
+  }]
 }
 
 const onDragStart = (event, nodeType) => {
   event.dataTransfer.setData('application/nodeType', JSON.stringify(nodeType))
+  event.dataTransfer.effectAllowed = 'move'
 }
 
 const onDrop = (event) => {
   const data = event.dataTransfer.getData('application/nodeType')
-  if (!data) return
+  if (!data || !currentFlow.value) return
   const nodeType = JSON.parse(data)
   const rect = event.currentTarget.getBoundingClientRect()
   const position = {
@@ -545,7 +719,7 @@ const onDrop = (event) => {
     data: defaultNodeData(nodeType.type),
     label: nodeType.label,
   }
-  nodes.value.push(newNode)
+  nodes.value = [...nodes.value, newNode]
 }
 
 // 运行时自动显示日志
@@ -575,6 +749,8 @@ onMounted(async () => {
   padding: 12px 20px;
   background: #161b22;
   border-bottom: 1px solid #21262d;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .header-left {
@@ -588,6 +764,7 @@ onMounted(async () => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .flow-selector {
@@ -599,6 +776,7 @@ onMounted(async () => {
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ====== 运行进度 ====== */
@@ -637,8 +815,7 @@ onMounted(async () => {
   background: #161b22;
   border-right: 1px solid #21262d;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  flex-shrink: 0;
 }
 
 .palette-header {
@@ -655,16 +832,6 @@ onMounted(async () => {
   margin: 0;
 }
 
-.help-icon {
-  color: #484f58;
-  cursor: pointer;
-  transition: color 0.2s;
-}
-
-.help-icon:hover {
-  color: #58a6ff;
-}
-
 /* 分组 */
 .node-group {
   border-bottom: 1px solid #21262d;
@@ -678,7 +845,6 @@ onMounted(async () => {
   color: #8b949e;
   font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
   cursor: pointer;
   user-select: none;
@@ -689,11 +855,12 @@ onMounted(async () => {
   color: #e6edf3;
 }
 
-.group-title .el-icon {
-  transition: transform 0.3s;
+.collapse-arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
 }
 
-.group-title .el-icon.collapsed {
+.collapse-arrow.collapsed {
   transform: rotate(-90deg);
 }
 
@@ -712,14 +879,13 @@ onMounted(async () => {
   background: #0d1117;
   border: 1px solid #21262d;
   cursor: grab;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .palette-node:hover {
   border-color: #58a6ff;
   background: #1c2333;
   transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(88, 166, 255, 0.1);
 }
 
 .palette-node:active {
@@ -760,6 +926,7 @@ onMounted(async () => {
   flex: 1;
   background: #0d1117;
   position: relative;
+  overflow: hidden;
 }
 
 /* 空状态引导 */
@@ -770,12 +937,12 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   z-index: 10;
-  background: rgba(13, 17, 23, 0.95);
+  background: rgba(13, 17, 23, 0.97);
 }
 
 .empty-content {
   text-align: center;
-  max-width: 480px;
+  max-width: 500px;
   padding: 40px;
 }
 
@@ -857,10 +1024,10 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-.start-btn {
-  font-size: 15px;
-  padding: 20px 36px;
-  border-radius: 10px;
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 
 /* 有流程但画布空 */
@@ -877,8 +1044,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 20px;
-  background: rgba(22, 27, 34, 0.9);
+  padding: 14px 24px;
+  background: rgba(22, 27, 34, 0.95);
   border: 1px dashed #30363d;
   border-radius: 10px;
   color: #8b949e;
@@ -887,7 +1054,7 @@ onMounted(async () => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.7; }
+  0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
 }
 
@@ -902,6 +1069,7 @@ onMounted(async () => {
   border-left: 1px solid #21262d;
   overflow-y: auto;
   padding: 16px;
+  flex-shrink: 0;
 }
 
 .config-header {
@@ -943,7 +1111,7 @@ onMounted(async () => {
 
 /* ====== 日志 ====== */
 .run-logs {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
   font-size: 12px;
 }
 
@@ -970,29 +1138,5 @@ onMounted(async () => {
   color: #484f58;
   text-align: center;
   padding: 40px;
-}
-
-/* ====== 过渡动画 ====== */
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.25s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.collapse-enter-active,
-.collapse-leave-active {
-  transition: all 0.2s ease;
-  overflow: hidden;
-}
-
-.collapse-enter-from,
-.collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
 }
 </style>
