@@ -618,9 +618,10 @@ const loadFlow = async () => {
   }
 }
 
-const createFlow = () => {
+const createFlow = async () => {
   flowStore.createFlow()
   currentFlowId.value = flowStore.currentFlow.id
+  await flowStore.saveFlow()
   ElMessage.success('新流程已创建，从左侧拖拽节点开始构建')
 }
 
@@ -628,22 +629,38 @@ const loadTemplate = async (templateId) => {
   const tpl = templates[templateId]
   if (!tpl) return
 
+  const flowId = `flow-${Date.now()}`
   flowStore.currentFlow = {
-    id: `flow-${Date.now()}`,
+    id: flowId,
     name: tpl.name,
     description: tpl.description,
     createdAt: new Date().toISOString(),
   }
-  // 深拷贝避免引用问题
+  // 深拷贝确保无 Vue Proxy
   flowStore.nodes = JSON.parse(JSON.stringify(tpl.nodes))
   flowStore.edges = JSON.parse(JSON.stringify(tpl.edges))
   flowStore.variables = {}
-  currentFlowId.value = flowStore.currentFlow.id
+  currentFlowId.value = flowId
   selectedNode.value = null
-  ElMessage.success(`已加载示例「${tpl.name}」，点击节点查看配置`)
+
+  // 自动保存到数据库，这样"运行"才能找到
+  await flowStore.saveFlow()
+  if (!flowStore.error) {
+    ElMessage.success(`已加载示例「${tpl.name}」，点击节点查看配置`)
+  } else {
+    ElMessage.error(`加载失败: ${flowStore.error}`)
+  }
 }
 
 const saveFlow = async () => {
+  if (!currentFlow.value) return
+  // 脱壳：移除 Vue 响应式 Proxy，否则 IPC structured clone 会报错
+  const plainNodes = JSON.parse(JSON.stringify(nodes.value))
+  const plainEdges = JSON.parse(JSON.stringify(edges.value))
+  const plainFlow = JSON.parse(JSON.stringify(currentFlow.value))
+  flowStore.nodes = plainNodes
+  flowStore.edges = plainEdges
+  flowStore.currentFlow = plainFlow
   await flowStore.saveFlow()
   if (!flowStore.error) {
     ElMessage.success('流程已保存')
