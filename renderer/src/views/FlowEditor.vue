@@ -654,13 +654,6 @@ const loadTemplate = async (templateId) => {
 
 const saveFlow = async () => {
   if (!currentFlow.value) return
-  // 脱壳：移除 Vue 响应式 Proxy，否则 IPC structured clone 会报错
-  const plainNodes = JSON.parse(JSON.stringify(nodes.value))
-  const plainEdges = JSON.parse(JSON.stringify(edges.value))
-  const plainFlow = JSON.parse(JSON.stringify(currentFlow.value))
-  flowStore.nodes = plainNodes
-  flowStore.edges = plainEdges
-  flowStore.currentFlow = plainFlow
   await flowStore.saveFlow()
   if (!flowStore.error) {
     ElMessage.success('流程已保存')
