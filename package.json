@@ -162,7 +162,6 @@
       "owner": "mmmmh2o",
       "repo": "mimo-bot",
       "releaseType": "release"
-    },
-    "differentialPackage": true
+    }
   }
 }
