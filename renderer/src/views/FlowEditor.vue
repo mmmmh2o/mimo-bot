@@ -275,7 +275,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { VueFlow } from '@vue-flow/core'
-import { Background, Controls, MiniMap } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { MiniMap } from '@vue-flow/minimap'
 import { useFlowStore } from '@/stores/flow'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
