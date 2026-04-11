@@ -1,17 +1,20 @@
 <template>
   <el-container class="app-container">
-    <el-aside width="240px" class="sidebar">
+    <el-aside width="220px" class="sidebar">
       <div class="logo">
         <span class="logo-icon">🤖</span>
-        <span class="logo-text">MiMo Bot</span>
+        <div class="logo-info">
+          <span class="logo-text">MiMo Bot</span>
+          <span class="logo-version">v0.1.0</span>
+        </div>
       </div>
       <el-menu
         :default-active="$route.path"
         router
         class="sidebar-menu"
-        background-color="#1a1a2e"
-        text-color="#a0a0b0"
-        active-text-color="#4fc3f7"
+        background-color="transparent"
+        text-color="#8b949e"
+        active-text-color="#58a6ff"
       >
         <el-menu-item index="/">
           <el-icon><Monitor /></el-icon>
@@ -64,28 +67,141 @@ onMounted(() => {
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body, #app { height: 100%; }
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #0f0f1a;
-  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', Roboto, sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  -webkit-font-smoothing: antialiased;
 }
+
 .app-container { height: 100vh; }
+
+/* 侧边栏 */
 .sidebar {
-  background: #1a1a2e;
+  background: #0d1117;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #2a2a3e;
+  border-right: 1px solid #21262d;
 }
+
 .logo {
-  padding: 20px;
+  padding: 20px 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  border-bottom: 1px solid #2a2a3e;
+  border-bottom: 1px solid #21262d;
 }
-.logo-icon { font-size: 28px; }
-.logo-text { font-size: 18px; font-weight: 600; color: #fff; }
-.sidebar-menu { flex: 1; border-right: none; }
-.sidebar-status { padding: 12px; border-top: 1px solid #2a2a3e; }
-.main-content { background: #0f0f1a; padding: 0; overflow: auto; }
+
+.logo-icon {
+  font-size: 26px;
+}
+
+.logo-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.logo-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e6edf3;
+  letter-spacing: -0.3px;
+}
+
+.logo-version {
+  font-size: 10px;
+  color: #484f58;
+}
+
+.sidebar-menu {
+  flex: 1;
+  border-right: none;
+  padding-top: 8px;
+}
+
+.sidebar-menu .el-menu-item {
+  margin: 2px 8px;
+  border-radius: 8px;
+  height: 40px;
+  line-height: 40px;
+  transition: all 0.15s ease;
+}
+
+.sidebar-menu .el-menu-item:hover {
+  background: #161b22 !important;
+  color: #e6edf3 !important;
+}
+
+.sidebar-menu .el-menu-item.is-active {
+  background: #161b22 !important;
+  color: #58a6ff !important;
+  font-weight: 500;
+}
+
+.sidebar-status {
+  padding: 12px 16px;
+  border-top: 1px solid #21262d;
+}
+
+/* 主内容区 */
+.main-content {
+  background: #0d1117;
+  padding: 0;
+  overflow: auto;
+}
+
+/* 全局 Element Plus 暗色覆盖 */
+.el-select-dropdown {
+  background: #161b22 !important;
+  border-color: #30363d !important;
+}
+
+.el-button {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.el-input__wrapper,
+.el-textarea__inner {
+  background: #0d1117 !important;
+  border-color: #30363d !important;
+  box-shadow: none !important;
+  color: #e6edf3;
+}
+
+.el-input__wrapper:hover,
+.el-textarea__inner:hover {
+  border-color: #58a6ff !important;
+}
+
+.el-form-item__label {
+  color: #8b949e !important;
+  font-size: 12px;
+}
+
+.el-card {
+  background: #161b22;
+  border-color: #21262d;
+  border-radius: 10px;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
 </style>
