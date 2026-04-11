@@ -131,6 +131,7 @@ function getIconPath() {
 }
 
 async function initServices() {
+  try {
   // 用户数据目录（跨平台自动处理）
   const userDataPath = app.getPath('userData')
   log.info(`用户数据目录: ${userDataPath}`)
@@ -190,6 +191,14 @@ async function initServices() {
   flowEngine.registerPlugins(pluginManager)
 
   log.info('所有服务初始化完成')
+  } catch (error) {
+    log.error('❌ 服务初始化失败:', error)
+    log.error('错误堆栈:', error.stack)
+    if (mainWindow) {
+      mainWindow.webContents.send('init:error', error.message)
+    }
+    throw error
+  }
 }
 
 // ============ IPC 处理 ============
@@ -252,13 +261,34 @@ function registerIPC() {
   ipcMain.handle('settings:reset', () => { settingsManager.reset(); settingsManager.save(); return { success: true } })
 
   // --- 浏览器 ---
-  ipcMain.handle('browser:open', () => browserController.open())
-  ipcMain.handle('browser:openUrl', (_, url) => browserController.navigateTo(url))
-  ipcMain.handle('browser:screenshot', (_, opts) => browserController.screenshot(opts))
-  ipcMain.handle('browser:executeJs', (_, script) => browserController.executeJs(script))
-  ipcMain.handle('browser:saveCookie', () => browserController.saveCookie())
-  ipcMain.handle('browser:loadCookie', () => browserController.loadCookie())
-  ipcMain.handle('browser:clearCookie', () => browserController.clearCookie())
+  ipcMain.handle('browser:open', () => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.open()
+  })
+  ipcMain.handle('browser:openUrl', (_, url) => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.navigateTo(url)
+  })
+  ipcMain.handle('browser:screenshot', (_, opts) => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.screenshot(opts)
+  })
+  ipcMain.handle('browser:executeJs', (_, script) => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.executeJs(script)
+  })
+  ipcMain.handle('browser:saveCookie', () => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.saveCookie()
+  })
+  ipcMain.handle('browser:loadCookie', () => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.loadCookie()
+  })
+  ipcMain.handle('browser:clearCookie', () => {
+    if (!browserController) throw new Error('浏览器控制器未初始化，请查看日志')
+    return browserController.clearCookie()
+  })
 
   // --- GitHub 同步 ---
   ipcMain.handle('git:sync', (_, opts) => gitSync.sync(opts))
