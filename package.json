@@ -4,7 +4,7 @@
   "description": "\u7f51\u9875\u7279\u5316\u7248 AI \u81ea\u52a8\u5316\u5de5\u5177 \u2014 \u628a AI \u53d8\u6210\u4f60\u7684\u5458\u5de5",
   "main": "electron/main.js",
   "type": "module",
-  "author": "MiMo Bot",
+  "author": "MiMo Bot <bot@mimo.local>",
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -n renderer,electron -c blue,green \"npm run dev:renderer\" \"npm run dev:electron\"",
@@ -151,7 +151,8 @@
         "Name": "MiMo Bot",
         "Comment": "\u7f51\u9875\u7279\u5316\u7248 AI \u81ea\u52a8\u5316\u5de5\u5177",
         "Categories": "Utility;"
-      }
+      },
+      "maintainer": "bot@mimo.local"
     },
     "publish": {
       "provider": "github",
