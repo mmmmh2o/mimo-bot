@@ -11,7 +11,8 @@
  *   MiMo-Bot-1.1.0-lite-setup.exe   ← 更新下载
  */
 
-import { autoUpdater } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import log from 'electron-log'
 import { existsSync } from 'fs'
 import { join } from 'path'
