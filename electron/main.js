@@ -150,6 +150,8 @@ async function initServices() {
   if (app.isPackaged && browserConfig.headless === undefined) {
     browserConfig.headless = false // 默认显示浏览器，方便人工接管
   }
+  // 关键：传入用户数据目录，确保 cookie 等数据写到可写路径
+  browserConfig.userDataPath = userDataPath
   browserController = new BrowserController(browserConfig)
 
   // 4. 变量引擎

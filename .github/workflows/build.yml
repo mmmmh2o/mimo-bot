@@ -55,6 +55,12 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium
 
+      - name: Verify Chromium exists
+        run: |
+          echo "=== Playwright browsers ==="
+          ls -la node_modules/playwright/.local-browsers/ || true
+          find node_modules/playwright/.local-browsers -name "chrome" -o -name "chrome.exe" 2>/dev/null || true
+
       - name: Build renderer
         run: npm run build:renderer
 

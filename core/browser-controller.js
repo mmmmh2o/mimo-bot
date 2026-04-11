@@ -139,31 +139,56 @@ export class BrowserController {
    * 查找 Chromium 可执行文件（打包环境兼容）
    */
   _findChromium() {
-    const searchDirs = []
+    const binaryName = process.platform === 'win32' ? 'chrome.exe' : 'chrome'
 
     // 1. 打包环境：extraResources 中的浏览器
+    //    Playwright 目录结构: chromium/chromium-XXXX/chrome-linux/chrome
     if (process.resourcesPath) {
-      searchDirs.push(join(process.resourcesPath, 'chromium'))
-      searchDirs.push(process.resourcesPath)
+      const bundledDir = join(process.resourcesPath, 'chromium')
+      if (existsSync(bundledDir)) {
+        // 先尝试已知的 Playwright 子目录模式
+        const candidate = this._findInPlaywrightDir(bundledDir, binaryName)
+        if (candidate) {
+          log.info(`找到 Chromium (bundled): ${candidate}`)
+          return candidate
+        }
+        // 兜底：递归搜索
+        const found = this._findExecutable(bundledDir, binaryName)
+        if (found) {
+          log.info(`找到 Chromium (recursive): ${found}`)
+          return found
+        }
+        // 列出目录内容帮助调试
+        try {
+          const entries = readdirSync(bundledDir)
+          log.warn(`chromium/ 目录内容: ${entries.join(', ')}`)
+          for (const e of entries) {
+            const sub = join(bundledDir, e)
+            try {
+              if (statSync(sub).isDirectory()) {
+                log.warn(`  ${e}/: ${readdirSync(sub).slice(0, 10).join(', ')}`)
+              }
+            } catch {}
+          }
+        } catch {}
+      }
     }
 
     // 2. Playwright 默认缓存路径
     const home = process.env.HOME || process.env.USERPROFILE || ''
-    if (home) {
-      searchDirs.push(join(home, '.cache', 'ms-playwright'))
-      searchDirs.push(join(home, 'Library', 'Caches', 'ms-playwright'))
-      searchDirs.push(join(home, 'AppData', 'Local', 'ms-playwright'))
-    }
-    if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
-      searchDirs.push(process.env.PLAYWRIGHT_BROWSERS_PATH)
-    }
+    const cacheDirs = [
+      home && join(home, '.cache', 'ms-playwright'),
+      home && join(home, 'Library', 'Caches', 'ms-playwright'),
+      home && join(home, 'AppData', 'Local', 'ms-playwright'),
+      process.env.PLAYWRIGHT_BROWSERS_PATH,
+    ].filter(Boolean)
 
-    for (const dir of searchDirs) {
+    for (const dir of cacheDirs) {
       if (!existsSync(dir)) continue
-      const found = this._findExecutable(dir)
-      if (found) {
-        log.info(`找到 Chromium: ${found} (from ${dir})`)
-        return found
+      const candidate = this._findInPlaywrightDir(dir, binaryName)
+      if (candidate) {
+        log.info(`找到 Chromium (cache): ${candidate}`)
+        return candidate
       }
     }
 
@@ -180,26 +205,56 @@ export class BrowserController {
       }
     }
 
-    log.warn('未找到 Chromium，将使用 Playwright 默认查找')
+    log.warn('未找到 Chromium')
     return null
   }
 
-  _findExecutable(dir, depth = 0) {
-    if (depth > 5) return null
-    const targets = process.platform === 'win32'
-      ? ['chrome.exe']
-      : ['chrome', 'chromium']
+  /**
+   * 在 Playwright 浏览器目录中查找可执行文件
+   * 结构: dir/chromium-XXXX/chrome-linux/chrome (Linux)
+   *       dir/chromium-XXXX/chrome-mac/Chromium.app/Contents/MacOS/Chromium (Mac)
+   *       dir/chromium-XXXX/chrome-win/chrome.exe (Win)
+   */
+  _findInPlaywrightDir(dir, binaryName) {
     try {
       const entries = readdirSync(dir)
-      for (const entry of entries) {
-        const full = join(dir, entry)
-        if (targets.includes(entry) && existsSync(full)) return full
+      // 查找 chromium-* 或 chrome-* 开头的版本目录
+      const versionDirs = entries.filter(e =>
+        e.startsWith('chromium-') || e.startsWith('chrome-')
+      )
+      for (const verDir of versionDirs) {
+        const verPath = join(dir, verDir)
+        try {
+          if (!statSync(verPath).isDirectory()) continue
+        } catch { continue }
+        // 在版本目录下递归查找
+        const found = this._findExecutable(verPath, binaryName)
+        if (found) return found
       }
+    } catch {}
+    return null
+  }
+
+  /**
+   * 递归查找可执行文件
+   */
+  _findExecutable(dir, binaryName, depth = 0) {
+    if (depth > 6) return null
+    try {
+      const entries = readdirSync(dir)
+      // 先检查当前目录是否有目标文件
+      for (const entry of entries) {
+        if (entry === binaryName) {
+          const full = join(dir, entry)
+          if (existsSync(full)) return full
+        }
+      }
+      // 再递归子目录
       for (const entry of entries) {
         const full = join(dir, entry)
         try {
           if (statSync(full).isDirectory()) {
-            const found = this._findExecutable(full, depth + 1)
+            const found = this._findExecutable(full, binaryName, depth + 1)
             if (found) return found
           }
         } catch {}
