@@ -84,17 +84,37 @@ export class BrowserController {
     if (executablePath) {
       launchOptions.executablePath = executablePath
       log.info(`使用 Chromium: ${executablePath}`)
-    } else if (process.resourcesPath) {
-      // 打包环境下，_findChromium 可能返回 null（ASAR 内模块无法正确递归搜索）。
-      // 设置 PLAYWRIGHT_BROWSERS_PATH 让 Playwright 定位 extraResources 中的浏览器。
+    }
+
+    // 始终设置 PLAYWRIGHT_BROWSERS_PATH（Playwright 内部可能忽略 executablePath）
+    if (process.resourcesPath) {
       const bundledBrowserDir = join(process.resourcesPath, 'chromium')
       if (existsSync(bundledBrowserDir)) {
         process.env.PLAYWRIGHT_BROWSERS_PATH = bundledBrowserDir
-        log.info(`设置 PLAYWRIGHT_BROWSERS_PATH: ${bundledBrowserDir}`)
+        log.info(`PLAYWRIGHT_BROWSERS_PATH = ${bundledBrowserDir}`)
       }
     }
 
-    this._browser = await chromium.launch(launchOptions)
+    if (!executablePath && !process.env.PLAYWRIGHT_BROWSERS_PATH) {
+      log.warn('未找到 Chromium，Playwright 将尝试默认路径')
+    }
+
+    try {
+      this._browser = await chromium.launch(launchOptions)
+    } catch (error) {
+      log.error(`chromium.launch 失败: ${error.message}`)
+      log.error(`  executablePath: ${launchOptions.executablePath || '(未指定)'}`)
+      log.error(`  PLAYWRIGHT_BROWSERS_PATH: ${process.env.PLAYWRIGHT_BROWSERS_PATH || '(未设置)'}`)
+      log.error(`  resourcesPath: ${process.resourcesPath || '(未设置)'}`)
+      for (const dir of [join(process.resourcesPath || '', 'chromium'), process.resourcesPath || '']) {
+        if (!dir || !existsSync(dir)) continue
+        try {
+          const entries = readdirSync(dir).slice(0, 10)
+          log.error(`  ${dir}/: ${entries.join(', ')}`)
+        } catch {}
+      }
+      throw new Error(`${error.message}\n请运行 npx playwright install chromium 下载浏览器`)
+    }
 
     this._context = await this._browser.newContext({
       viewport: { width: 1280, height: 800 },
@@ -119,33 +139,51 @@ export class BrowserController {
    * 查找 Chromium 可执行文件（打包环境兼容）
    */
   _findChromium() {
-    // 1. 打包环境：递归搜索 resources/chromium 目录
-    //    Playwright 目录结构形如 chromium-1148/chrome-win/chrome.exe
+    const searchDirs = []
+
+    // 1. 打包环境：extraResources 中的浏览器
     if (process.resourcesPath) {
-      const chromiumDir = join(process.resourcesPath, 'chromium')
-      if (existsSync(chromiumDir)) {
-        const found = this._findExecutable(chromiumDir)
-        if (found) return found
+      searchDirs.push(join(process.resourcesPath, 'chromium'))
+      searchDirs.push(process.resourcesPath)
+    }
+
+    // 2. Playwright 默认缓存路径
+    const home = process.env.HOME || process.env.USERPROFILE || ''
+    if (home) {
+      searchDirs.push(join(home, '.cache', 'ms-playwright'))
+      searchDirs.push(join(home, 'Library', 'Caches', 'ms-playwright'))
+      searchDirs.push(join(home, 'AppData', 'Local', 'ms-playwright'))
+    }
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+      searchDirs.push(process.env.PLAYWRIGHT_BROWSERS_PATH)
+    }
+
+    for (const dir of searchDirs) {
+      if (!existsSync(dir)) continue
+      const found = this._findExecutable(dir)
+      if (found) {
+        log.info(`找到 Chromium: ${found} (from ${dir})`)
+        return found
       }
     }
 
-    // 2. 系统浏览器
+    // 3. 系统浏览器
     const systemPaths = {
       linux: ['/usr/bin/chromium-browser', '/usr/bin/chromium', '/usr/bin/google-chrome'],
       darwin: ['/Applications/Chromium.app/Contents/MacOS/Chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
       win32: ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'],
     }
-    const paths = systemPaths[process.platform] || []
-    for (const p of paths) {
-      if (existsSync(p)) return p
+    for (const p of (systemPaths[process.platform] || [])) {
+      if (existsSync(p)) {
+        log.info(`使用系统浏览器: ${p}`)
+        return p
+      }
     }
 
-    return null // 回退到 Playwright 默认
+    log.warn('未找到 Chromium，将使用 Playwright 默认查找')
+    return null
   }
 
-  /**
-   * 递归查找目录中的 Chromium 可执行文件
-   */
   _findExecutable(dir, depth = 0) {
     if (depth > 5) return null
     const targets = process.platform === 'win32'
