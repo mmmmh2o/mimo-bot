@@ -12,7 +12,7 @@ export default {
       const result = await page.evaluate(
         ({ sel, script }) => {
           const el = document.querySelector(sel)
-          return eval('(function(el){ ' + script + ' })')(el)
+          return eval(script)
         },
         { sel, script }
       )
@@ -21,7 +21,7 @@ export default {
         ctx.emit('flow:variable-updated', { name: data.outputVariable, value: result })
       }
     } else {
-      const result = await ctx.browser.executeJs('(function() { ' + script + ' })()')
+      const result = await ctx.browser.executeJs(script)
       if (data.outputVariable) {
         ctx.variables.set(data.outputVariable, result, 'runtime')
         ctx.emit('flow:variable-updated', { name: data.outputVariable, value: result })
