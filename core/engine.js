@@ -74,6 +74,13 @@ export class FlowEngine {
   }
 
   /**
+   * 注销节点类型
+   */
+  unregisterNode(type) {
+    this._nodeRegistry.delete(type)
+  }
+
+  /**
    * 运行指定流程
    */
   async run(flowId, inputVars) {
