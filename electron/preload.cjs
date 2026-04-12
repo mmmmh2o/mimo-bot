@@ -72,6 +72,12 @@ const api = {
   nodes: {
     loadAll: () => ipcRenderer.invoke('nodes:loadAll'),
   },
+  customNode: {
+    list: () => ipcRenderer.invoke('customNode:list'),
+    get: (id) => ipcRenderer.invoke('customNode:get', id),
+    save: (node) => ipcRenderer.invoke('customNode:save', node),
+    delete: (id) => ipcRenderer.invoke('customNode:delete', id),
+  },
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
     openDataFolder: () => ipcRenderer.invoke('app:openDataFolder'),
