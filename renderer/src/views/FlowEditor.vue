@@ -177,8 +177,29 @@
             <el-input :model-value="selectedNode.id" disabled />
           </el-form-item>
 
+          <!-- 动态配置面板（从 manifest.fields 生成） -->
+          <template v-if="nodeManifests[selectedNode.type]">
+            <template v-for="field in nodeManifests[selectedNode.type].fields" :key="field.key">
+              <!-- divider -->
+              <el-divider v-if="field.type === 'divider' && fieldVisible(field, selectedNode.data)" content-position="left">
+                {{ field.label }}
+              </el-divider>
+              <!-- 普通字段 -->
+              <el-form-item v-else-if="fieldVisible(field, selectedNode.data)" :label="field.label">
+                <el-input v-if="field.type === 'text'" v-model="selectedNode.data[field.key]" :placeholder="field.placeholder" />
+                <el-input v-else-if="field.type === 'textarea'" v-model="selectedNode.data[field.key]" type="textarea" :rows="field.rows || 3" :placeholder="field.placeholder" />
+                <el-input v-else-if="field.type === 'code'" v-model="selectedNode.data[field.key]" type="textarea" :rows="field.rows || 6" :placeholder="field.placeholder" />
+                <el-input-number v-else-if="field.type === 'number'" v-model="selectedNode.data[field.key]" :min="field.min" :max="field.max" />
+                <el-switch v-else-if="field.type === 'switch'" v-model="selectedNode.data[field.key]" />
+                <el-select v-else-if="field.type === 'select'" v-model="selectedNode.data[field.key]" style="width:100%">
+                  <el-option v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value" />
+                </el-select>
+              </el-form-item>
+            </template>
+          </template>
+
           <!-- send-message 配置 -->
-          <template v-if="selectedNode.type === 'send-message'">
+          <template v-if="selectedNode.type === 'send-message' && !nodeManifests['send-message']">
             <el-form-item label="消息内容">
               <el-input v-model="selectedNode.data.content" type="textarea" :rows="4" placeholder="支持 {{变量}} 插值" />
             </el-form-item>
@@ -233,7 +254,7 @@
           </template>
 
           <!-- wait-reply 配置 -->
-          <template v-if="selectedNode.type === 'wait-reply'">
+          <template v-if="selectedNode.type === 'wait-reply' && !nodeManifests['wait-reply']">
             <el-form-item label="等待模式">
               <el-select v-model="selectedNode.data.mode" style="width:100%">
                 <el-option label="🔌 适配器模式" value="adapter" />
@@ -252,7 +273,7 @@
           </template>
 
           <!-- condition 配置 -->
-          <template v-if="selectedNode.type === 'condition'">
+          <template v-if="selectedNode.type === 'condition' && !nodeManifests['condition']">
             <el-form-item label="源变量">
               <el-input v-model="selectedNode.data.sourceVariable" placeholder="变量名" />
             </el-form-item>
@@ -272,7 +293,7 @@
           </template>
 
           <!-- loop 配置 -->
-          <template v-if="selectedNode.type === 'loop'">
+          <template v-if="selectedNode.type === 'loop' && !nodeManifests['loop']">
             <el-form-item label="数据源变量">
               <el-input v-model="selectedNode.data.sourceVariable" />
             </el-form-item>
@@ -285,7 +306,7 @@
           </template>
 
           <!-- extract 配置 -->
-          <template v-if="selectedNode.type === 'extract'">
+          <template v-if="selectedNode.type === 'extract' && !nodeManifests['extract']">
             <el-form-item label="源变量">
               <el-input v-model="selectedNode.data.sourceVariable" />
             </el-form-item>
@@ -304,7 +325,7 @@
           </template>
 
           <!-- read-file 配置 -->
-          <template v-if="selectedNode.type === 'read-file'">
+          <template v-if="selectedNode.type === 'read-file' && !nodeManifests['read-file']">
             <el-form-item label="文件路径">
               <el-input v-model="selectedNode.data.path" placeholder="支持 {{变量}}" />
             </el-form-item>
@@ -314,7 +335,7 @@
           </template>
 
           <!-- save 配置 -->
-          <template v-if="selectedNode.type === 'save'">
+          <template v-if="selectedNode.type === 'save' && !nodeManifests['save']">
             <el-form-item label="变量名">
               <el-input v-model="selectedNode.data.variable" />
             </el-form-item>
@@ -327,7 +348,7 @@
           </template>
 
           <!-- set-variable 配置 -->
-          <template v-if="selectedNode.type === 'set-variable'">
+          <template v-if="selectedNode.type === 'set-variable' && !nodeManifests['set-variable']">
             <el-form-item label="变量名">
               <el-input v-model="selectedNode.data.name" />
             </el-form-item>
@@ -345,14 +366,14 @@
           </template>
 
           <!-- delay 配置 -->
-          <template v-if="selectedNode.type === 'delay'">
+          <template v-if="selectedNode.type === 'delay' && !nodeManifests['delay']">
             <el-form-item label="延时 (秒)">
               <el-input-number v-model="selectedNode.data.seconds" :min="1" :max="3600" />
             </el-form-item>
           </template>
 
           <!-- scrape 配置 -->
-          <template v-if="selectedNode.type === 'scrape'">
+          <template v-if="selectedNode.type === 'scrape' && !nodeManifests['scrape']">
             <el-form-item label="URL">
               <el-input v-model="selectedNode.data.url" placeholder="支持 {{变量}}" />
             </el-form-item>
@@ -365,7 +386,7 @@
           </template>
 
           <!-- run-command 配置 -->
-          <template v-if="selectedNode.type === 'run-command'">
+          <template v-if="selectedNode.type === 'run-command' && !nodeManifests['run-command']">
             <el-form-item label="命令">
               <el-input v-model="selectedNode.data.command" type="textarea" :rows="2" />
             </el-form-item>
@@ -381,14 +402,14 @@
           </template>
 
           <!-- human-handoff 配置 -->
-          <template v-if="selectedNode.type === 'human-handoff'">
+          <template v-if="selectedNode.type === 'human-handoff' && !nodeManifests['human-handoff']">
             <el-form-item label="提示消息">
               <el-input v-model="selectedNode.data.message" type="textarea" :rows="2" />
             </el-form-item>
           </template>
 
           <!-- run-js 配置 -->
-          <template v-if="selectedNode.type === 'run-js'">
+          <template v-if="selectedNode.type === 'run-js' && !nodeManifests['run-js']">
             <el-form-item label="JavaScript 代码">
               <el-input v-model="selectedNode.data.code" type="textarea" :rows="8" placeholder="return document.title&#10;// 支持 {{变量}} 插值&#10;// $el = 选择器命中的元素（如有）" />
             </el-form-item>
@@ -446,52 +467,65 @@ const edges = computed({ get: () => flowStore.edges, set: (v) => flowStore.edges
 const selectedNode = ref(null)
 const showLogs = ref(false)
 
-// 分组节点
-const nodeGroups = reactive([
-  {
-    name: '流程控制',
-    icon: '🔧',
-    collapsed: false,
-    nodes: [
-      { type: 'start', icon: '🟢', label: '开始', desc: '流程入口' },
-      { type: 'end', icon: '🏁', label: '结束', desc: '流程出口' },
-      { type: 'condition', icon: '🔀', label: '条件分支', desc: '根据条件走不同路径' },
-      { type: 'loop', icon: '🔁', label: '循环', desc: '遍历列表或重复执行' },
-      { type: 'delay', icon: '⏰', label: '延时等待', desc: '暂停指定秒数' },
-    ]
-  },
-  {
-    name: '消息交互',
-    icon: '💬',
-    collapsed: false,
-    nodes: [
-      { type: 'send-message', icon: '📤', label: '发送消息', desc: '向页面发送消息' },
-      { type: 'wait-reply', icon: '⏳', label: '等待回复', desc: '等待用户输入' },
-      { type: 'human-handoff', icon: '🙋', label: '人工介入', desc: '暂停等人处理' },
-    ]
-  },
-  {
-    name: '数据处理',
-    icon: '📊',
-    collapsed: false,
-    nodes: [
-      { type: 'set-variable', icon: '📝', label: '设置变量', desc: '定义或修改变量' },
-      { type: 'extract', icon: '📦', label: '提取变量', desc: '从文本中提取数据' },
-      { type: 'read-file', icon: '📁', label: '读取文件', desc: '读取本地文件内容' },
-      { type: 'save', icon: '💾', label: '保存输出', desc: '将结果写入文件' },
-    ]
-  },
-  {
-    name: '系统操作',
-    icon: '⚡',
-    collapsed: false,
-    nodes: [
-      { type: 'scrape', icon: '🌐', label: '网页抓取', desc: '抓取网页内容' },
-      { type: 'run-command', icon: '🖥️', label: '运行命令', desc: '执行系统命令' },
-      { type: 'run-js', icon: '🧩', label: '执行 JS', desc: '在页面上执行 JavaScript' },
-    ]
-  },
-])
+// 节点 manifest 注册表（从 nodes/ 目录动态加载）
+const nodeManifests = ref({})
+
+// 从 manifest 生成分组（优先用 manifest，fallback 到硬编码）
+const nodeGroups = computed(() => {
+  if (Object.keys(nodeManifests.value).length > 0) {
+    const groups = {}
+    const icons = { '流程控制': '🔧', '消息交互': '💬', '数据处理': '📊', '系统操作': '⚡' }
+    for (const [type, m] of Object.entries(nodeManifests.value)) {
+      const g = m.group || '其他'
+      if (!groups[g]) groups[g] = { name: g, icon: icons[g] || '📦', collapsed: false, nodes: [] }
+      groups[g].nodes.push({ type, icon: m.icon, label: m.label, desc: m.desc })
+    }
+    return Object.values(groups)
+  }
+  // fallback 硬编码（manifest 未加载时）
+  return fallbackNodeGroups
+})
+
+// 硬编码 fallback（manifest 未加载时用）
+const fallbackNodeGroups = [
+  { name: '流程控制', icon: '🔧', collapsed: false, nodes: [
+    { type: 'start', icon: '🟢', label: '开始', desc: '流程入口' },
+    { type: 'end', icon: '🏁', label: '结束', desc: '流程出口' },
+    { type: 'condition', icon: '🔀', label: '条件分支', desc: '根据条件走不同路径' },
+    { type: 'loop', icon: '🔁', label: '循环', desc: '遍历列表或重复执行' },
+    { type: 'delay', icon: '⏰', label: '延时等待', desc: '暂停指定秒数' },
+  ]},
+  { name: '消息交互', icon: '💬', collapsed: false, nodes: [
+    { type: 'send-message', icon: '📤', label: '发送消息', desc: '向页面发送消息' },
+    { type: 'wait-reply', icon: '⏳', label: '等待回复', desc: '等待用户输入' },
+    { type: 'human-handoff', icon: '🙋', label: '人工介入', desc: '暂停等人处理' },
+  ]},
+  { name: '数据处理', icon: '📊', collapsed: false, nodes: [
+    { type: 'set-variable', icon: '📝', label: '设置变量', desc: '定义或修改变量' },
+    { type: 'extract', icon: '📦', label: '提取变量', desc: '从文本中提取数据' },
+    { type: 'read-file', icon: '📁', label: '读取文件', desc: '读取本地文件内容' },
+    { type: 'save', icon: '💾', label: '保存输出', desc: '将结果写入文件' },
+  ]},
+  { name: '系统操作', icon: '⚡', collapsed: false, nodes: [
+    { type: 'scrape', icon: '🌐', label: '网页抓取', desc: '抓取网页内容' },
+    { type: 'run-command', icon: '🖥️', label: '运行命令', desc: '执行系统命令' },
+    { type: 'run-js', icon: '🧩', label: '执行 JS', desc: '在页面上执行 JavaScript' },
+  ]},
+]
+
+// 动态面板渲染辅助：判断 showIf 条件
+function fieldVisible(field, data) {
+  if (!field.showIf) return true
+  const checks = Array.isArray(field.showIf) ? field.showIf : [field.showIf]
+  return checks.every(c => {
+    const val = getNestedValue(data, c.key)
+    if (c.op === 'not') return val !== c.value
+    return val === c.value
+  })
+}
+function getNestedValue(obj, path) {
+  return path.split('.').reduce((o, k) => o?.[k], obj)
+}
 
 // ===== 示例模板 =====
 const templates = {
@@ -655,6 +689,12 @@ const getNodeLabel = (type) => {
 }
 
 const defaultNodeData = (type) => {
+  // 优先从 manifest 拿默认值
+  const manifest = nodeManifests.value[type]
+  if (manifest?.defaults) {
+    return JSON.parse(JSON.stringify(manifest.defaults))
+  }
+  // fallback 硬编码
   const defaults = {
     'send-message': { content: '', mode: 'adapter', inputSelector: '', inputMethod: 'type', sendMethod: 'click', sendSelector: '', waitForReply: true, replySelector: '', timeout: 120, typingSpeed: [50, 150], delayBeforeSend: [1000, 3000], outputVariable: '' },
     'wait-reply': { mode: 'adapter', replySelector: '', timeout: 120, outputVariable: '' },
@@ -672,7 +712,7 @@ const defaultNodeData = (type) => {
     'start': {},
     'end': {},
   }
-  return { ...defaults[type], continueOnError: false }
+  return { ...(defaults[type] || {}), continueOnError: false }
 }
 
 // ===== 操作 =====
@@ -804,6 +844,15 @@ watch(() => flowStore.isRunning, (val) => {
 })
 
 onMounted(async () => {
+  // 加载节点 manifest
+  try {
+    const manifests = await window.api.nodes.loadAll()
+    if (manifests && Object.keys(manifests).length > 0) {
+      nodeManifests.value = manifests
+    }
+  } catch (e) {
+    console.warn('节点 manifest 加载失败，使用硬编码面板:', e)
+  }
   await flowStore.loadFlowList()
   flowStore.subscribeEvents()
 })

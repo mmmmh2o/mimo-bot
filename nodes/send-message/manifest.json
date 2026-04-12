@@ -1,0 +1,56 @@
+{
+  "type": "send-message",
+  "label": "发送消息",
+  "icon": "📤",
+  "group": "消息交互",
+  "desc": "向页面发送消息",
+  "defaults": {
+    "content": "",
+    "mode": "adapter",
+    "inputSelector": "",
+    "inputMethod": "type",
+    "sendMethod": "click",
+    "sendSelector": "",
+    "waitForReply": true,
+    "replySelector": "",
+    "timeout": 120,
+    "typingSpeed": [50, 150],
+    "delayBeforeSend": [1000, 3000],
+    "outputVariable": "",
+    "continueOnError": false
+  },
+  "fields": [
+    { "key": "content", "label": "消息内容", "type": "textarea", "rows": 4, "placeholder": "支持 {{变量}} 插值" },
+    {
+      "key": "mode", "label": "发送模式", "type": "select",
+      "options": [
+        { "label": "🔌 适配器模式（自动识别页面）", "value": "adapter" },
+        { "label": "🎯 自定义模式（指定选择器）", "value": "custom" }
+      ]
+    },
+    { "key": "_divider_input", "label": "输入设置", "type": "divider", "showIf": { "key": "mode", "value": "custom" } },
+    { "key": "inputSelector", "label": "输入目标（CSS 选择器）", "type": "text", "placeholder": "textarea, #msg-input", "showIf": { "key": "mode", "value": "custom" } },
+    {
+      "key": "inputMethod", "label": "输入方式", "type": "select", "showIf": { "key": "mode", "value": "custom" },
+      "options": [
+        { "label": "逐字输入（模拟键盘）", "value": "type" },
+        { "label": "粘贴填入（一次性）", "value": "fill" }
+      ]
+    },
+    { "key": "_divider_send", "label": "发送设置", "type": "divider", "showIf": { "key": "mode", "value": "custom" } },
+    {
+      "key": "sendMethod", "label": "发送方式", "type": "select", "showIf": { "key": "mode", "value": "custom" },
+      "options": [
+        { "label": "点击按钮", "value": "click" },
+        { "label": "按回车", "value": "enter" },
+        { "label": "回车 + 点击", "value": "both" }
+      ]
+    },
+    { "key": "sendSelector", "label": "发送按钮（CSS 选择器）", "type": "text", "placeholder": "button.send, #submit", "showIf": { "key": "sendMethod", "op": "not", "value": "enter" } },
+    { "key": "_divider_reply", "label": "回复设置", "type": "divider" },
+    { "key": "waitForReply", "label": "等待回复", "type": "switch" },
+    { "key": "replySelector", "label": "回复容器（CSS 选择器）", "type": "text", "placeholder": ".reply, .message:last-child", "showIf": [{ "key": "waitForReply", "value": true }, { "key": "mode", "value": "custom" }] },
+    { "key": "timeout", "label": "回复超时 (秒)", "type": "number", "min": 10, "max": 600, "showIf": { "key": "waitForReply", "value": true } },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text", "placeholder": "reply", "showIf": { "key": "waitForReply", "value": true } }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "read-file",
+  "label": "读取文件",
+  "icon": "📁",
+  "group": "数据处理",
+  "desc": "读取本地文件内容",
+  "defaults": { "path": "", "outputVariable": "", "continueOnError": false },
+  "fields": [
+    { "key": "path", "label": "文件路径", "type": "text", "placeholder": "支持 {{变量}}" },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text" }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "type": "wait-reply",
+  "label": "等待回复",
+  "icon": "⏳",
+  "group": "消息交互",
+  "desc": "等待用户输入",
+  "defaults": {
+    "mode": "adapter",
+    "replySelector": "",
+    "timeout": 120,
+    "outputVariable": "",
+    "continueOnError": false
+  },
+  "fields": [
+    {
+      "key": "mode", "label": "等待模式", "type": "select",
+      "options": [
+        { "label": "🔌 适配器模式", "value": "adapter" },
+        { "label": "🎯 自定义模式（指定选择器）", "value": "custom" }
+      ]
+    },
+    { "key": "replySelector", "label": "回复容器（CSS 选择器）", "type": "text", "placeholder": ".reply, .message:last-child", "showIf": { "key": "mode", "value": "custom" } },
+    { "key": "timeout", "label": "超时 (秒)", "type": "number", "min": 10, "max": 600 },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text", "placeholder": "reply" }
+  ]
+}

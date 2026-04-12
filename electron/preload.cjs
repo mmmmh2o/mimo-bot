@@ -69,6 +69,9 @@ const api = {
     delete: (id) => ipcRenderer.invoke('schedule:delete', id),
     runNow: (id) => ipcRenderer.invoke('schedule:runNow', id),
   },
+  nodes: {
+    loadAll: () => ipcRenderer.invoke('nodes:loadAll'),
+  },
   app: {
     getInfo: () => ipcRenderer.invoke('app:getInfo'),
     openDataFolder: () => ipcRenderer.invoke('app:openDataFolder'),

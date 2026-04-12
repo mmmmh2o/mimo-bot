@@ -1,0 +1,13 @@
+{
+  "type": "save",
+  "label": "保存输出",
+  "icon": "💾",
+  "group": "数据处理",
+  "desc": "将结果写入文件",
+  "defaults": { "variable": "", "path": "", "append": false, "continueOnError": false },
+  "fields": [
+    { "key": "variable", "label": "变量名", "type": "text" },
+    { "key": "path", "label": "保存路径", "type": "text" },
+    { "key": "append", "label": "追加模式", "type": "switch" }
+  ]
+}

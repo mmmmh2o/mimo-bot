@@ -1,0 +1,22 @@
+{
+  "type": "run-js",
+  "label": "执行 JS",
+  "icon": "🧩",
+  "group": "系统操作",
+  "desc": "在页面上执行 JavaScript",
+  "defaults": {
+    "code": "",
+    "selector": "",
+    "waitForElement": false,
+    "outputVariable": "",
+    "timeout": 30,
+    "continueOnError": false
+  },
+  "fields": [
+    { "key": "code", "label": "JavaScript 代码", "type": "code", "lang": "javascript", "rows": 8, "placeholder": "return el.innerText\n// 支持 {{变量}} 插值\n// $el = 选择器命中的元素（如有）" },
+    { "key": "selector", "label": "元素选择器（可选）", "type": "text", "placeholder": "#app, .content — 留空则不注入 $el" },
+    { "key": "waitForElement", "label": "等待元素就绪", "type": "switch" },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text", "placeholder": "将 return 值存到此变量" },
+    { "key": "timeout", "label": "超时 (秒)", "type": "number", "min": 5, "max": 300 }
+  ]
+}

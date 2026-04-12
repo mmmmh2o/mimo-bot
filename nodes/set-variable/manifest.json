@@ -1,0 +1,21 @@
+{
+  "type": "set-variable",
+  "label": "设置变量",
+  "icon": "📝",
+  "group": "数据处理",
+  "desc": "定义或修改变量",
+  "defaults": { "name": "", "value": "", "scope": "runtime", "continueOnError": false },
+  "fields": [
+    { "key": "name", "label": "变量名", "type": "text" },
+    { "key": "value", "label": "值", "type": "textarea", "rows": 3 },
+    {
+      "key": "scope", "label": "作用域", "type": "select",
+      "options": [
+        { "label": "输入", "value": "input" },
+        { "label": "运行时", "value": "runtime" },
+        { "label": "输出", "value": "output" },
+        { "label": "持久化", "value": "persistent" }
+      ]
+    }
+  ]
+}

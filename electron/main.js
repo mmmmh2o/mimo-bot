@@ -13,6 +13,7 @@ import { Database } from '../core/database.js'
 import { Scheduler } from '../core/scheduler.js'
 import { GitSync } from '../core/git-sync.js'
 import { PluginManager } from '../core/plugins/plugin-manager.js'
+import { NodeLoader } from '../core/node-loader.js'
 import { SettingsManager } from '../core/settings.js'
 import { Scraper } from '../core/scraper.js'
 import { initUpdater, checkOnStartup } from './updater.js'
@@ -34,6 +35,7 @@ let db = null
 let scheduler = null
 let gitSync = null
 let pluginManager = null
+let nodeLoader = null
 let settingsManager = null
 let scraper = null
 
@@ -193,6 +195,12 @@ async function initServices() {
   // 10. 注册插件节点
   flowEngine.registerPlugins(pluginManager)
 
+  // 11. 加载节点目录（nodes/）
+  const nodesDir = join(__dirname, '..', 'nodes')
+  nodeLoader = new NodeLoader(nodesDir)
+  await nodeLoader.scan()
+  nodeLoader.registerToEngine(flowEngine)
+
   log.info('所有服务初始化完成')
   } catch (error) {
     log.error('❌ 服务初始化失败:', error)
@@ -317,6 +325,9 @@ function registerIPC() {
   ipcMain.handle('schedule:update', (_, id, config) => { scheduler.update(id, config); return { success: true } })
   ipcMain.handle('schedule:delete', (_, id) => { scheduler.remove(id); return { success: true } })
   ipcMain.handle('schedule:runNow', (_, id) => scheduler.runNow(id))
+
+  // --- 节点 ---
+  ipcMain.handle('nodes:loadAll', () => nodeLoader?.getAllManifests() || {})
 
   // --- 应用信息 ---
   ipcMain.handle('app:getInfo', () => ({

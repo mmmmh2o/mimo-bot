@@ -1,0 +1,13 @@
+{
+  "type": "scrape",
+  "label": "网页抓取",
+  "icon": "🌐",
+  "group": "系统操作",
+  "desc": "抓取网页内容",
+  "defaults": { "url": "", "selector": "", "outputVariable": "", "continueOnError": false },
+  "fields": [
+    { "key": "url", "label": "URL", "type": "text", "placeholder": "支持 {{变量}}" },
+    { "key": "selector", "label": "选择器", "type": "text", "placeholder": "CSS 选择器" },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text" }
+  ]
+}

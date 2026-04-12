@@ -1,0 +1,9 @@
+{
+  "type": "start",
+  "label": "开始",
+  "icon": "🟢",
+  "group": "流程控制",
+  "desc": "流程入口",
+  "defaults": { "continueOnError": false },
+  "fields": []
+}

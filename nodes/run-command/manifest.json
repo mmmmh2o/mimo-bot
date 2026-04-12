@@ -1,0 +1,14 @@
+{
+  "type": "run-command",
+  "label": "运行命令",
+  "icon": "🖥️",
+  "group": "系统操作",
+  "desc": "执行系统命令",
+  "defaults": { "command": "", "workingDir": "", "timeout": 60, "outputVariable": "", "continueOnError": false },
+  "fields": [
+    { "key": "command", "label": "命令", "type": "textarea", "rows": 2 },
+    { "key": "workingDir", "label": "工作目录", "type": "text" },
+    { "key": "timeout", "label": "超时 (秒)", "type": "number", "min": 5, "max": 3600 },
+    { "key": "outputVariable", "label": "输出变量名", "type": "text" }
+  ]
+}

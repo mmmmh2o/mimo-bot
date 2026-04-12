@@ -1,0 +1,11 @@
+{
+  "type": "human-handoff",
+  "label": "人工介入",
+  "icon": "🙋",
+  "group": "消息交互",
+  "desc": "暂停等人处理",
+  "defaults": { "message": "需要人工介入", "continueOnError": false },
+  "fields": [
+    { "key": "message", "label": "提示消息", "type": "textarea", "rows": 2 }
+  ]
+}

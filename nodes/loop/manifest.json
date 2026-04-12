@@ -1,0 +1,18 @@
+{
+  "type": "loop",
+  "label": "循环",
+  "icon": "🔁",
+  "group": "流程控制",
+  "desc": "遍历列表或重复执行",
+  "defaults": {
+    "sourceVariable": "",
+    "maxIterations": 100,
+    "itemVariable": "item",
+    "continueOnError": false
+  },
+  "fields": [
+    { "key": "sourceVariable", "label": "数据源变量", "type": "text" },
+    { "key": "maxIterations", "label": "最大迭代次数", "type": "number", "min": 1, "max": 1000 },
+    { "key": "itemVariable", "label": "当前项变量名", "type": "text", "placeholder": "item" }
+  ]
+}

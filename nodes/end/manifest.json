@@ -1,0 +1,9 @@
+{
+  "type": "end",
+  "label": "结束",
+  "icon": "🏁",
+  "group": "流程控制",
+  "desc": "流程出口",
+  "defaults": { "continueOnError": false },
+  "fields": []
+}

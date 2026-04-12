@@ -1,0 +1,27 @@
+{
+  "type": "condition",
+  "label": "条件分支",
+  "icon": "🔀",
+  "group": "流程控制",
+  "desc": "根据条件走不同路径",
+  "defaults": {
+    "sourceVariable": "",
+    "condition": { "type": "contains", "target": "" },
+    "continueOnError": false
+  },
+  "fields": [
+    { "key": "sourceVariable", "label": "源变量", "type": "text", "placeholder": "变量名" },
+    {
+      "key": "condition.type", "label": "条件类型", "type": "select",
+      "options": [
+        { "label": "包含", "value": "contains" },
+        { "label": "不包含", "value": "not-contains" },
+        { "label": "等于", "value": "equals" },
+        { "label": "正则匹配", "value": "regex" },
+        { "label": "大于", "value": "greater-than" },
+        { "label": "小于", "value": "less-than" }
+      ]
+    },
+    { "key": "condition.target", "label": "目标值", "type": "text" }
+  ]
+}

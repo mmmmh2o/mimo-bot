@@ -1,0 +1,12 @@
+{
+  "type": "extract",
+  "label": "提取变量",
+  "icon": "📦",
+  "group": "数据处理",
+  "desc": "从文本中提取数据",
+  "defaults": { "sourceVariable": "", "rules": [{ "type": "regex", "pattern": "", "variable": "" }], "continueOnError": false },
+  "fields": [
+    { "key": "sourceVariable", "label": "源变量", "type": "text" },
+    { "key": "rules", "label": "提取规则", "type": "rules" }
+  ]
+}
