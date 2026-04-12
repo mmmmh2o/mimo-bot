@@ -81,6 +81,18 @@ export class Database {
         last_run TEXT,
         created_at TEXT DEFAULT (datetime('now'))
       );
+
+      CREATE TABLE IF NOT EXISTS custom_nodes (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        icon TEXT DEFAULT '🧩',
+        \`group\` TEXT DEFAULT '自定义',
+        description TEXT,
+        fields TEXT DEFAULT '[]',
+        code TEXT NOT NULL,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
     `)
 
     log.info(`数据库已初始化: ${this.dbPath}`)
@@ -196,6 +208,39 @@ export class Database {
       VALUES (?, ?, datetime('now'))
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
     `).run(key, JSON.stringify(value))
+  }
+
+  // ---- 自定义节点 CRUD ----
+
+  getCustomNodes() {
+    const rows = this._db.prepare('SELECT * FROM custom_nodes ORDER BY updated_at DESC').all()
+    return rows.map(r => ({ ...r, fields: JSON.parse(r.fields || '[]') }))
+  }
+
+  getCustomNode(id) {
+    const row = this._db.prepare('SELECT * FROM custom_nodes WHERE id = ?').get(id)
+    if (!row) return null
+    return { ...row, fields: JSON.parse(row.fields || '[]') }
+  }
+
+  saveCustomNode(node) {
+    const { id, label, icon, group, description, fields, code } = node
+    this._db.prepare(`
+      INSERT INTO custom_nodes (id, label, icon, \`group\`, description, fields, code, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(id) DO UPDATE SET
+        label = excluded.label,
+        icon = excluded.icon,
+        \`group\` = excluded.\`group\`,
+        description = excluded.description,
+        fields = excluded.fields,
+        code = excluded.code,
+        updated_at = datetime('now')
+    `).run(id, label || '自定义节点', icon || '🧩', group || '自定义', description || '', JSON.stringify(fields || []), code)
+  }
+
+  deleteCustomNode(id) {
+    this._db.prepare('DELETE FROM custom_nodes WHERE id = ?').run(id)
   }
 
   close() {
