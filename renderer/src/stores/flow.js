@@ -100,6 +100,8 @@ export const useFlowStore = defineStore('flow', {
 
     async runFlow() {
       if (!this.currentFlow) return
+      // 先保存确保数据库有最新数据
+      await this.saveFlow()
       this.isRunning = true
       this.isPaused = false
       this.error = null
@@ -109,7 +111,13 @@ export const useFlowStore = defineStore('flow', {
         await window.api.flow.run(this.currentFlow.id)
       } catch (e) {
         this.isRunning = false
+        this.isPaused = false
         this.error = e.message
+        this.logs.push({
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          message: `💥 启动失败: ${e.message}`,
+        })
       }
     },
 
