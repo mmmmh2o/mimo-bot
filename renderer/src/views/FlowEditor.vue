@@ -60,6 +60,7 @@
       <div class="node-palette">
         <div class="palette-header">
           <h3>📦 节点面板</h3>
+          <el-button size="small" type="primary" plain @click="openCustomNodeDialog()">➕ 自定义</el-button>
         </div>
 
         <div v-for="group in nodeGroups" :key="group.name" class="node-group">
@@ -74,12 +75,20 @@
               class="palette-node"
               draggable="true"
               @dragstart="onDragStart($event, nodeType)"
+              @dblclick="nodeType.type?.startsWith('custom-') && editCustomNode(nodeType.type)"
             >
               <span class="node-icon">{{ nodeType.icon }}</span>
               <div class="node-info">
                 <span class="node-label">{{ nodeType.label }}</span>
                 <span class="node-desc">{{ nodeType.desc }}</span>
               </div>
+              <el-button
+                v-if="nodeType.type?.startsWith('custom-')"
+                size="small"
+                text
+                @click.stop="editCustomNode(nodeType.type)"
+                style="opacity:0.5"
+              >✏️</el-button>
             </div>
           </div>
         </div>
@@ -447,6 +456,67 @@
         <div v-if="flowStore.logs.length === 0" class="log-empty">暂无日志，运行流程后将在此显示</div>
       </div>
     </el-drawer>
+
+    <!-- 自定义节点对话框 -->
+    <el-dialog
+      v-model="customNodeDialogVisible"
+      :title="customNodeForm.id ? '✏️ 编辑自定义节点' : '➕ 新建自定义节点'"
+      width="640px"
+      destroy-on-close
+    >
+      <el-form label-position="top" size="default">
+        <div style="display:flex;gap:12px">
+          <el-form-item label="图标" style="width:80px">
+            <el-input v-model="customNodeForm.icon" placeholder="🧩" />
+          </el-form-item>
+          <el-form-item label="名称" style="flex:1">
+            <el-input v-model="customNodeForm.label" placeholder="如：获取标题" />
+          </el-form-item>
+        </div>
+        <div style="display:flex;gap:12px">
+          <el-form-item label="分组" style="flex:1">
+            <el-input v-model="customNodeForm.group" placeholder="自定义" />
+          </el-form-item>
+          <el-form-item label="描述" style="flex:1">
+            <el-input v-model="customNodeForm.description" placeholder="一句话描述" />
+          </el-form-item>
+        </div>
+
+        <el-divider content-position="left">配置字段（用户填写的参数）</el-divider>
+        <div v-for="(f, i) in customNodeForm.fields" :key="i" style="display:flex;gap:8px;margin-bottom:8px;align-items:end">
+          <el-input v-model="f.key" placeholder="字段名" style="width:120px" size="small" />
+          <el-input v-model="f.label" placeholder="显示名" style="width:120px" size="small" />
+          <el-select v-model="f.type" style="width:100px" size="small">
+            <el-option label="文本" value="text" />
+            <el-option label="多行" value="textarea" />
+            <el-option label="数字" value="number" />
+            <el-option label="开关" value="switch" />
+          </el-select>
+          <el-input v-model="f.placeholder" placeholder="提示文字" style="flex:1" size="small" />
+          <el-button size="small" type="danger" plain @click="customNodeForm.fields.splice(i, 1)">✕</el-button>
+        </div>
+        <el-button size="small" @click="customNodeForm.fields.push({ key: '', label: '', type: 'text', placeholder: '' })">
+          + 添加字段
+        </el-button>
+
+        <el-divider content-position="left">JavaScript 执行脚本</el-divider>
+        <el-input
+          v-model="customNodeForm.code"
+          type="textarea"
+          :rows="10"
+          placeholder="// 在此编写 JS 脚本&#10;// 可用变量：&#10;//   $fields.字段名  → 用户填写的字段值&#10;//   $data           → 节点完整配置&#10;// return 值会存入输出变量&#10;&#10;return document.title"
+          style="font-family: monospace"
+        />
+        <div style="color:#8b949e;font-size:12px;margin-top:4px">
+          脚本在浏览器页面上下文中执行，支持所有 DOM API。使用 <code>return</code> 返回结果。
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="customNodeDialogVisible = false">取消</el-button>
+        <el-button type="danger" plain v-if="customNodeForm.id" @click="deleteCustomNode(customNodeForm.id)">删除</el-button>
+        <el-button type="primary" @click="saveCustomNode">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -466,6 +536,54 @@ const nodes = computed({ get: () => flowStore.nodes, set: (v) => flowStore.nodes
 const edges = computed({ get: () => flowStore.edges, set: (v) => flowStore.edges = v })
 const selectedNode = ref(null)
 const showLogs = ref(false)
+
+// 自定义节点
+const customNodeDialogVisible = ref(false)
+const customNodeForm = ref({ id: '', icon: '🧩', label: '', group: '自定义', description: '', fields: [], code: '' })
+
+function openCustomNodeDialog(node) {
+  if (node) {
+    customNodeForm.value = { ...node, fields: JSON.parse(JSON.stringify(node.fields || [])) }
+  } else {
+    customNodeForm.value = { id: '', icon: '🧩', label: '', group: '自定义', description: '', fields: [{ key: 'input', label: '输入', type: 'text', placeholder: '' }], code: '// 在此编写 JS 脚本\nreturn document.title' }
+  }
+  customNodeDialogVisible.value = true
+}
+
+async function saveCustomNode() {
+  const f = customNodeForm.value
+  if (!f.label) return ElMessage.error('请填写节点名称')
+  if (!f.code) return ElMessage.error('请填写执行脚本')
+  const id = f.id || `custom-${Date.now()}`
+  await window.api.customNode.save({
+    id,
+    label: f.label,
+    icon: f.icon || '🧩',
+    group: f.group || '自定义',
+    description: f.description,
+    fields: f.fields.filter(f => f.key),
+    code: f.code,
+  })
+  customNodeDialogVisible.value = false
+  ElMessage.success('自定义节点已保存')
+  // 重新加载 manifest
+  const manifests = await window.api.nodes.loadAll()
+  if (manifests) nodeManifests.value = manifests
+}
+
+async function editCustomNode(type) {
+  const id = type.replace('custom-', '')
+  const node = await window.api.customNode.get(id)
+  if (node) openCustomNodeDialog(node)
+}
+
+async function deleteCustomNode(id) {
+  await window.api.customNode.delete(id)
+  customNodeDialogVisible.value = false
+  ElMessage.success('已删除')
+  const manifests = await window.api.nodes.loadAll()
+  if (manifests) nodeManifests.value = manifests
+}
 
 // 节点 manifest 注册表（从 nodes/ 目录动态加载）
 const nodeManifests = ref({})
