@@ -433,7 +433,7 @@ export class BrowserController {
    */
   async executeJs(script) {
     await this.ensureReady()
-    return await this._page.evaluate(script)
+    return await this._page.evaluate((s) => eval(s), String(script))
   }
 
   /**
