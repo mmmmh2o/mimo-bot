@@ -195,10 +195,11 @@ async function initServices() {
   // 10. 注册插件节点
   flowEngine.registerPlugins(pluginManager)
 
-  // 11. 加载节点目录（nodes/）
+  // 11. 加载节点目录（nodes/）+ 数据库自定义节点
   const nodesDir = join(__dirname, '..', 'nodes')
   nodeLoader = new NodeLoader(nodesDir)
   await nodeLoader.scan()
+  nodeLoader.loadCustomNodes(db)
   nodeLoader.registerToEngine(flowEngine)
 
   log.info('所有服务初始化完成')
@@ -328,6 +329,20 @@ function registerIPC() {
 
   // --- 节点 ---
   ipcMain.handle('nodes:loadAll', () => nodeLoader?.getAllManifests() || {})
+
+  // --- 自定义节点 ---
+  ipcMain.handle('customNode:list', () => db.getCustomNodes())
+  ipcMain.handle('customNode:get', (_, id) => db.getCustomNode(id))
+  ipcMain.handle('customNode:save', (_, node) => {
+    db.saveCustomNode(node)
+    nodeLoader?.reloadCustomNodes(db, flowEngine)
+    return { success: true }
+  })
+  ipcMain.handle('customNode:delete', (_, id) => {
+    db.deleteCustomNode(id)
+    nodeLoader?.reloadCustomNodes(db, flowEngine)
+    return { success: true }
+  })
 
   // --- 应用信息 ---
   ipcMain.handle('app:getInfo', () => ({
