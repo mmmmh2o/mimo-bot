@@ -413,6 +413,41 @@ export class FlowEngine {
       },
     })
 
+    // 执行页面 JS
+    this._nodeRegistry.set('run-js', {
+      type: 'run-js',
+      async execute(data, ctx) {
+        let script = ctx.render(data.code || '')
+        if (!script) throw new Error('run-js: 未配置代码')
+
+        // 如果指定了选择器，把匹配到的元素作为 $el 注入
+        if (data.selector) {
+          const sel = ctx.render(data.selector)
+          const wrapScript = `
+            (function() {
+              const $els = document.querySelectorAll(${JSON.stringify(sel)});
+              const $el = $els[0] || null;
+              ${script}
+            })()
+          `
+          script = wrapScript
+        } else {
+          // 包装为 IIFE 确保返回值
+          script = `(function() { ${script} })()`
+        }
+
+        const timeout = (data.timeout || 30) * 1000
+        const result = await ctx.browser.executeJs(script)
+
+        if (data.outputVariable) {
+          ctx.variables.set(data.outputVariable, result, 'runtime')
+          ctx.emit('flow:variable-updated', { name: data.outputVariable, value: result })
+        }
+
+        log.info(`run-js 完成${data.selector ? ` (selector: ${data.selector})` : ''}`)
+      },
+    })
+
     // 人工介入
     this._nodeRegistry.set('human-handoff', {
       type: 'human-handoff',

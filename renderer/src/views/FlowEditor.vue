@@ -387,6 +387,22 @@
             </el-form-item>
           </template>
 
+          <!-- run-js 配置 -->
+          <template v-if="selectedNode.type === 'run-js'">
+            <el-form-item label="JavaScript 代码">
+              <el-input v-model="selectedNode.data.code" type="textarea" :rows="8" placeholder="return document.title&#10;// 支持 {{变量}} 插值&#10;// $el = 选择器命中的元素（如有）" />
+            </el-form-item>
+            <el-form-item label="元素选择器（可选）">
+              <el-input v-model="selectedNode.data.selector" placeholder="如 #app, .content — 留空则不注入 $el" />
+            </el-form-item>
+            <el-form-item label="输出变量名">
+              <el-input v-model="selectedNode.data.outputVariable" placeholder="将 return 值存到此变量" />
+            </el-form-item>
+            <el-form-item label="超时 (秒)">
+              <el-input-number v-model="selectedNode.data.timeout" :min="5" :max="300" />
+            </el-form-item>
+          </template>
+
           <!-- 通用：出错继续 -->
           <el-form-item label="出错时继续">
             <el-switch v-model="selectedNode.data.continueOnError" />
@@ -472,6 +488,7 @@ const nodeGroups = reactive([
     nodes: [
       { type: 'scrape', icon: '🌐', label: '网页抓取', desc: '抓取网页内容' },
       { type: 'run-command', icon: '🖥️', label: '运行命令', desc: '执行系统命令' },
+      { type: 'run-js', icon: '🧩', label: '执行 JS', desc: '在页面上执行 JavaScript' },
     ]
   },
 ])
@@ -650,6 +667,7 @@ const defaultNodeData = (type) => {
     'delay': { seconds: 5 },
     'scrape': { url: '', selector: '', outputVariable: '' },
     'run-command': { command: '', workingDir: '', timeout: 60, outputVariable: '' },
+    'run-js': { code: '', selector: '', outputVariable: '', timeout: 30 },
     'human-handoff': { message: '需要人工介入' },
     'start': {},
     'end': {},
